@@ -7,7 +7,11 @@ import type { AiReading } from "@/types";
 
 export const runtime = "nodejs";
 
-export async function GET(request: NextRequest, { params }: { params: { id: string; chapter: string } }) {
+export async function GET(
+  request: NextRequest,
+  props: { params: Promise<{ id: string; chapter: string }> }
+) {
+  const params = await props.params;
   const { id, chapter } = params;
   if (!requireReadingAccess(request, id)) {
     return NextResponse.json({ error: "Áudio indisponível." }, { status: 403 });

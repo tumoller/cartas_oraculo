@@ -36,10 +36,10 @@ export const CardItem: React.FC<CardItemProps> = ({
   }, [isFlipped]);
   const showFace = isFlipped && !isLocked;
   const backStyle = deck === "Linha de Umbanda"
-    ? "border-emerald-500/60 bg-gradient-to-b from-emerald-950 via-slate-900 to-slate-950"
+    ? "border-emerald-500/60 bg-linear-to-b from-emerald-950 via-slate-900 to-slate-950"
     : deck === "Cigana Tradicional"
-      ? "border-amber-500/60 bg-gradient-to-b from-rose-950 via-amber-950 to-slate-950"
-      : "border-cyan-500/50 bg-gradient-to-b from-indigo-950 via-purple-950 to-slate-950";
+      ? "border-amber-500/60 bg-linear-to-b from-rose-950 via-amber-950 to-slate-950"
+      : "border-cyan-500/50 bg-linear-to-b from-indigo-950 via-purple-950 to-slate-950";
 
   return (
     <div className="flex flex-col items-center group">
@@ -67,7 +67,7 @@ export const CardItem: React.FC<CardItemProps> = ({
           <div
             className={`absolute inset-0 w-full h-full rounded-xl border-2 backface-hidden flex flex-col items-center justify-between p-3 overflow-hidden shadow-2xl ${
               isLocked
-                ? "border-purple-600/60 bg-gradient-to-b from-slate-900 via-purple-950 to-slate-950 cosmic-card-glow-locked"
+                ? "border-purple-600/60 bg-linear-to-b from-slate-900 via-purple-950 to-slate-950 cosmic-card-glow-locked"
                 : `${backStyle} cosmic-card-glow`
             }`}
           >
@@ -121,7 +121,7 @@ export const CardItem: React.FC<CardItemProps> = ({
 
           {/* FRENTE DA CARTA (REVELADA) */}
           {showFace && <div
-            className="absolute inset-0 w-full h-full rounded-xl border-2 rotate-y-180 backface-hidden flex flex-col p-3 overflow-hidden shadow-2xl bg-gradient-to-b from-slate-900 via-slate-950 to-black border-amber-400/50 cosmic-card-glow"
+            className="absolute inset-0 w-full h-full rounded-xl border-2 rotate-y-180 backface-hidden flex flex-col p-3 overflow-hidden shadow-2xl bg-linear-to-b from-slate-900 via-slate-950 to-black border-amber-400/50 cosmic-card-glow"
           >
             {/* Se houver imagem e não tiver dado erro, mostra a imagem; caso contrário, Fallback Cósmico */}
             {card.imageUrl && !imgError ? (
@@ -147,7 +147,7 @@ export const CardItem: React.FC<CardItemProps> = ({
 
                 {/* Ilustração Cósmica Central */}
                 <div className="my-auto flex flex-col items-center justify-center p-2 text-center">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-800/40 via-cyan-900/40 to-amber-600/30 border border-amber-400/40 flex items-center justify-center shadow-inner mb-2">
+                  <div className="w-16 h-16 rounded-full bg-linear-to-tr from-purple-800/40 via-cyan-900/40 to-amber-600/30 border border-amber-400/40 flex items-center justify-center shadow-inner mb-2">
                     <Sparkles className="w-8 h-8 text-amber-300 animate-pulse-slow" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-100 font-serif leading-tight">

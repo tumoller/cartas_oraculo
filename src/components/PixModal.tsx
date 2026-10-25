@@ -51,7 +51,7 @@ export const PixModal: React.FC<PixModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in" role="presentation">
-      <div role="dialog" aria-modal="true" aria-labelledby="pix-title" className="relative w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border border-purple-500/40 rounded-2xl p-6 shadow-2xl cosmic-card-glow">
+      <div role="dialog" aria-modal="true" aria-labelledby="pix-title" className="relative w-full max-w-md bg-linear-to-b from-slate-900 via-slate-950 to-slate-900 border border-purple-500/40 rounded-2xl p-6 shadow-2xl cosmic-card-glow">
         {/* Botão Fechar */}
         <button
           onClick={onClose}
@@ -96,7 +96,7 @@ export const PixModal: React.FC<PixModalProps> = ({
         <button
           onClick={handleSimulatePayment}
           disabled={isUnlocking}
-          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-sm tracking-wide transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          className="w-full py-3.5 px-4 rounded-xl bg-linear-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-sm tracking-wide transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
         >
           {isUnlocking ? (
             <>

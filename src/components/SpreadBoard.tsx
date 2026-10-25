@@ -133,7 +133,7 @@ export function SpreadBoard({ session, onReset }: { session: ReadingSessionPaylo
   </section>;
 
   return <ConsultationWorkspace session={session} table={table}>
-    <section ref={reading} tabIndex={-1} className="min-w-0 scroll-mt-24 focus:outline-none">
+    <section ref={reading} tabIndex={-1} className="min-w-0 scroll-mt-24 focus:outline-hidden">
       <ConsultationReadingPane
         title={synthesis ? "Sua leitura completa" : section?.title || "Sua leitura"}
         subtitle={referenceDescription || (synthesis ? "Todas as cartas da mesma mesa, conectadas em uma síntese." : chapterHint(spread, chapterId))}

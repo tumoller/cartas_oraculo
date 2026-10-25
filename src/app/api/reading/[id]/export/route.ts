@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireReadingAccess } from "@/lib/reading-access";
 import { sanitizeReadingSession } from "@/lib/sanitize";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   if (!requireReadingAccess(req, params.id)) return NextResponse.json({error:"Acesso não autorizado."},{status:403});
   const session = await prisma.readingSession.findUnique({where:{id:params.id}});
   if (!session?.isPaid) return NextResponse.json({error:"A consulta completa ainda não foi liberada."},{status:403});

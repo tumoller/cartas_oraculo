@@ -5,7 +5,8 @@ import { createLiveToken, liveInstruction, liveTrialStarted, releaseFailedLiveTr
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   if (!requireReadingAccess(req, params.id)) {
     return NextResponse.json({ error: "Acesso à leitura negado." }, { status: 403 });
   }
@@ -22,7 +23,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   );
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   if (process.env.ORACLE_LIVE_ENABLED !== "true") {
     return NextResponse.json({ error: "Conversa ao vivo indisponível." }, { status: 404 });
   }

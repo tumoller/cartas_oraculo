@@ -23,7 +23,7 @@ export const WhatsAppUpsell: React.FC<WhatsAppUpsellProps> = ({ session }) => {
   )}`;
 
   return (
-    <div className="w-full max-w-3xl mx-auto my-12 p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-purple-950/70 via-indigo-950/80 to-purple-950/70 border-2 border-amber-400/50 shadow-2xl cosmic-card-glow-gold relative overflow-hidden animate-fade-in">
+    <div className="w-full max-w-3xl mx-auto my-12 p-6 sm:p-8 rounded-2xl bg-linear-to-r from-purple-950/70 via-indigo-950/80 to-purple-950/70 border-2 border-amber-400/50 shadow-2xl cosmic-card-glow-gold relative overflow-hidden animate-fade-in">
       {/* Detalhes luminosos no fundo */}
       <div className="absolute -top-12 -right-12 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />

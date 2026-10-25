@@ -3,10 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { sanitizeReadingSession } from "@/lib/sanitize";
 import { requireReadingAccess } from "@/lib/reading-access";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { id } = params;
     if (!requireReadingAccess(req, id)) return NextResponse.json({ error: "Abra esta consulta no navegador em que ela foi criada." }, { status: 403 });

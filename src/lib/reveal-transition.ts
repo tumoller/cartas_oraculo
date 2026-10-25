@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 // One short transition for the real revealed position; no shuffle or generation.
 export function useRevealTransition(sessionId: string): number | null {
   const [position, setPosition] = useState<number | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     const reveal = (event: Event) => {
       const detail = (event as CustomEvent<{ sessionId: string; position: number }>).detail;

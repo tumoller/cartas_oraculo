@@ -229,7 +229,7 @@ export default function Home() {
                 placeholder="Ex: Mariana, Carlos, Helena..."
                 maxLength={40}
                 required
-                className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium text-sm"
+                className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium text-sm"
               />
             </div>
 
@@ -338,7 +338,7 @@ export default function Home() {
                 maxLength={500}
                 rows={3}
                 placeholder="O que você gostaria de refletir sobre este tema?"
-                className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm"
+                className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm"
               />
             </div>
 
@@ -372,7 +372,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-sm sm:text-base tracking-wide transition-all shadow-xl shadow-purple-900/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full py-4 px-6 rounded-xl bg-linear-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-sm sm:text-base tracking-wide transition-all shadow-xl shadow-purple-900/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isLoading ? (
                 <>

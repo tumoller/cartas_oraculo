@@ -23,7 +23,8 @@ async function responseItems(id: string, reading: AiReading, persona: string, ch
   }));
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await paidReading(request, params.id);
   if (!session) return NextResponse.json({ error: "Leitura indisponível." }, { status: 403 });
   const chapter = request.nextUrl.searchParams.get("chapter");
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   return NextResponse.json(chapter ? items[0] : { chapters: items }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await paidReading(request, params.id);
   if (!session) return NextResponse.json({ error: "Leitura indisponível." }, { status: 403 });
   let body: unknown;

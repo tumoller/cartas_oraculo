@@ -1,0 +1,362 @@
+[
+  {
+    "id": 1,
+    "name": "1. O Cavaleiro",
+    "keywords": ["notícias", "movimento", "rapidez", "coragem", "mensageiro"],
+    "polarity": "Positiva",
+    "meaningLove": "Chegada de um novo amor, reencontro apaixonado ou mensagens diretas que movimentam o coração.",
+    "meaningWork": "Propostas chegando com rapidez, novos projetos em andamento e ousadia para empreender.",
+    "meaningGeneral": "Ação rápida, vitalidade e notícias boas que chegam para destravar caminhos parados.",
+    "imageUrl": "/cards/card-1.png"
+  },
+  {
+    "id": 2,
+    "name": "2. O Trevo",
+    "keywords": ["obstáculos passageiros", "sorte repentina", "esperança", "pequenos desafios", "fé"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Pequenos desentendimentos temporários que podem ser superados com leveza e paciência.",
+    "meaningWork": "Imprevistos fáceis de contornar; pequenas oportunidades financeiras que exigem atenção.",
+    "meaningGeneral": "Pedras no caminho que testam a perseverança, seguidas de alívio e golpes de sorte.",
+    "imageUrl": "/cards/card-2.png"
+  },
+  {
+    "id": 3,
+    "name": "3. O Navio",
+    "keywords": ["viagens", "mudanças de rumo", "horizontes", "transição", "espera"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Distanciamento momentâneo ou necessidade de novos ares e viagens a dois para reacender a chama.",
+    "meaningWork": "Negócios com o exterior ou outras regiões; transição gradual de carreira e expansão de mercado.",
+    "meaningGeneral": "Movimentos de longo alcance, transformações lentas e busca por novos horizontes de vida.",
+    "imageUrl": "/cards/card-3.png"
+  },
+  {
+    "id": 4,
+    "name": "4. A Casa",
+    "keywords": ["estabilidade", "família", "segurança", "lar", "equilíbrio íntimo"],
+    "polarity": "Positiva",
+    "meaningLove": "Relacionamento sólido, desejo de construir família, casamento e convivência harmoniosa.",
+    "meaningWork": "Base financeira segura, consolidação patrimonial ou trabalho sólido e estável.",
+    "meaningGeneral": "Estrutura interna inabalável, proteção do lar e harmonia com as próprias raízes.",
+    "imageUrl": "/cards/card-4.png"
+  },
+  {
+    "id": 5,
+    "name": "5. A Árvore",
+    "keywords": ["saúde", "vitalidade", "crescimento", "longevidade", "raízes profundas"],
+    "polarity": "Positiva",
+    "meaningLove": "Amor duradouro, afeto cultivado com o tempo e cumplicidade com raízes firmes.",
+    "meaningWork": "Investimentos com retorno sólido a longo prazo; estabilidade profissional e maturação.",
+    "meaningGeneral": "Saúde vigorosa, crescimento contínuo e conexão com a força vital ancestral.",
+    "imageUrl": "/cards/card-5.png"
+  },
+  {
+    "id": 6,
+    "name": "6. As Nuvens",
+    "keywords": ["confusão mental", "dúvidas", "instabilidade", "ilusões", "clareza passageira"],
+    "polarity": "Negativa",
+    "meaningLove": "Incertezas sobre o parceiro, ciúmes infundados ou falta de clareza nos sentimentos.",
+    "meaningWork": "Cenário nebuloso para tomar decisões financeiras; evite fechar contratos agora.",
+    "meaningGeneral": "Mente agitada e visibilidade baixa temporária; espere o vento dissipar a tempestade.",
+    "imageUrl": "/cards/card-6.png"
+  },
+  {
+    "id": 7,
+    "name": "7. A Serpente",
+    "keywords": ["traição", "astúcia", "desconfiança", "falsidade", "sedução perigosa"],
+    "polarity": "Negativa",
+    "meaningLove": "Presença de rivalidade amorosa, mentiras, deslealdade ou tentações prejudiciais.",
+    "meaningWork": "Colegas desleais no trabalho, intrigas de bastidores e necessidade de extrema cautela.",
+    "meaningGeneral": "Alerta vermelho contra pessoas venenosas e situações manipuladoras ao seu redor.",
+    "imageUrl": "/cards/card-7.png"
+  },
+  {
+    "id": 8,
+    "name": "8. O Caixão",
+    "keywords": ["fins de ciclo", "renascimento", "transformação", "perda", "ruptura necessária"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Término definitivo de padrões desgastados ou fim de uma fase no relacionamento para renascer.",
+    "meaningWork": "Encerramento de um contrato, demissão ou transição radical para um novo nicho.",
+    "meaningGeneral": "Morte do que não serve mais; o adubo fértil para que uma nova fase se inicie.",
+    "imageUrl": "/cards/card-8.png"
+  },
+  {
+    "id": 9,
+    "name": "9. O Buquê",
+    "keywords": ["alegria", "presentes", "reconhecimento", "harmonia", "celebração"],
+    "polarity": "Positiva",
+    "meaningLove": "Felicidade transbordante, surpresas carinhosas, gentileza e atração magnética.",
+    "meaningWork": "Bônus financeiro, reconhecimento dos superiores e ambiente de trabalho acolhedor.",
+    "meaningGeneral": "Graças recebidas, cura emocional e momentos de celebração sincera com quem se ama.",
+    "imageUrl": "/cards/card-9.png"
+  },
+  {
+    "id": 10,
+    "name": "10. A Foice",
+    "keywords": ["corte brusco", "decisão rápida", "colheita", "ruptura", "separação"],
+    "polarity": "Negativa",
+    "meaningLove": "Ruptura inesperada, separação dolorosa mas necessária ou corte cirúrgico de ilusões.",
+    "meaningWork": "Demissão súbita ou fim repentino de parcerias; colheita inescapável do que foi plantado.",
+    "meaningGeneral": "Cortes drásticos e imediatos que encerram situações sem aviso prévio.",
+    "imageUrl": "/cards/card-10.png"
+  },
+  {
+    "id": 11,
+    "name": "11. O Chicote",
+    "keywords": ["conflitos", "brigas", "tensão", "cobrança", "sofrimento repetitivo"],
+    "polarity": "Negativa",
+    "meaningLove": "Discussões acaloradas, desentendimentos repetitivos, magoas e clima tenso a dois.",
+    "meaningWork": "Disputas de poder, pressão excessiva por resultados e desgaste com lideranças.",
+    "meaningGeneral": "Energias de atrito, autopunição e desarmonia espiritual que precisam ser pacificadas.",
+    "imageUrl": "/cards/card-11.png"
+  },
+  {
+    "id": 12,
+    "name": "12. Os Pássaros",
+    "keywords": ["comunicação", "conversas", "troca de ideias", "flerte", "agitação mental"],
+    "polarity": "Positiva",
+    "meaningLove": "Diálogos abertos, flertes divertidos, encontros descontraídos e conversas sinceras.",
+    "meaningWork": "Reuniões produtivas, networking ágil, entrevistas e trocas ricas de informações.",
+    "meaningGeneral": "Leveza comunicativa, novidades pelo telefone e dinamismo social com amigos.",
+    "imageUrl": "/cards/card-12.png"
+  },
+  {
+    "id": 13,
+    "name": "13. A Criança",
+    "keywords": ["novos começos", "pureza", "inocência", "espontaneidade", "imaturidade"],
+    "polarity": "Positiva",
+    "meaningLove": "Início ingênuo e encantador de um romance, ou necessidade de agir com menos birra.",
+    "meaningWork": "Um projeto embrionário que precisa ser nutrido; criatividade pura e sem vícios.",
+    "meaningGeneral": "Olhar o mundo com olhos frescos, espontaneidade e renovação da esperança.",
+    "imageUrl": "/cards/card-13.png"
+  },
+  {
+    "id": 14,
+    "name": "14. A Raposa",
+    "keywords": ["astúcia", "armadilhas", "falsidade", "estratégia", "cautela"],
+    "polarity": "Negativa",
+    "meaningLove": "Parceiro com segundas intenções, joguinhos emocionais ou manipulações disfarçadas.",
+    "meaningWork": "Golpes, contratos com letras miúdas enganosas e ambiente corporativo predatório.",
+    "meaningGeneral": "Necessidade de ligar o radar de alerta máximo; desconfie do que parece fácil demais.",
+    "imageUrl": "/cards/card-14.png"
+  },
+  {
+    "id": 15,
+    "name": "15. O Urso",
+    "keywords": ["força protetora", "ciúme", "poder", "possessividade", "autoridade"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Ciúme sufocante, sentimento de posse exagerado ou proteção calorosa mas pesada.",
+    "meaningWork": "Chefia dominante e controladora; estabilidade financeira sustentada por força bruta.",
+    "meaningGeneral": "Força física e espiritual poderosa, mas que pode se tornar agressiva se descontrolada.",
+    "imageUrl": "/cards/card-15.png"
+  },
+  {
+    "id": 16,
+    "name": "16. A Estrela",
+    "keywords": ["esperança", "brilho pessoal", "espiritualidade", "destino", "inspiração"],
+    "polarity": "Positiva",
+    "meaningLove": "Conexão de almas, romance iluminado, harmonia celestial e admiração mútua.",
+    "meaningWork": "Reconhecimento público de talentos, sucesso brilhante e carreira em ascensão.",
+    "meaningGeneral": "Proteção dos guias espirituais, clareza intuitiva e fé inabalável no amanhã.",
+    "imageUrl": "/cards/card-16.png"
+  },
+  {
+    "id": 17,
+    "name": "17. A Cegonha",
+    "keywords": ["mudanças positivas", "novidades", "renovação", "nascimento", "deslocamento"],
+    "polarity": "Positiva",
+    "meaningLove": "Gravidez, virada de chave no relacionamento ou mudança de casa com a pessoa amada.",
+    "meaningWork": "Promoção, novos desafios profissionais que trazem grande evolução e novos ares.",
+    "meaningGeneral": "Ventos favoráveis trazendo acontecimentos novos e libertadores para sua vida.",
+    "imageUrl": "/cards/card-17.png"
+  },
+  {
+    "id": 18,
+    "name": "18. O Cão",
+    "keywords": ["lealdade", "fidelidade", "amizade verdadeira", "apoio", "confiança"],
+    "polarity": "Positiva",
+    "meaningLove": "Companheiro fiel em quem se pode confiar de olhos fechados; cumplicidade total.",
+    "meaningWork": "Parceiros de negócios éticos, equipe solidária e clientes fiéis.",
+    "meaningGeneral": "Amizades leais que estendem a mão nos momentos de maior vulnerabilidade.",
+    "imageUrl": "/cards/card-18.png"
+  },
+  {
+    "id": 19,
+    "name": "19. A Torre",
+    "keywords": ["isolamento", "introspecção", "elevação espiritual", "solidão", "instituições"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Fechamento emocional, sentimento de frieza ou necessidade de curar feridas no silêncio.",
+    "meaningWork": "Trabalho em grandes corporações, órgãos públicos ou planejamento individual discreto.",
+    "meaningGeneral": "Retiro interior necessário para enxergar as coisas de uma perspectiva mais alta.",
+    "imageUrl": "/cards/card-19.png"
+  },
+  {
+    "id": 20,
+    "name": "20. O Jardim",
+    "keywords": ["vida social", "encontros", "público", "visibilidade", "comunidade"],
+    "polarity": "Positiva",
+    "meaningLove": "Conhecer alguém em festas e eventos; amor exposto à comunidade e vida social ativa.",
+    "meaningWork": "Marketing, vendas, exposições públicas e atração natural de novos clientes.",
+    "meaningGeneral": "Compartilhar frutos com o mundo, sociabilidade e desfrute de momentos ao ar livre.",
+    "imageUrl": "/cards/card-20.png"
+  },
+  {
+    "id": 21,
+    "name": "21. A Montanha",
+    "keywords": ["obstáculos sólidos", "justiça", "firmeza", "bloqueios", "perseverança"],
+    "polarity": "Negativa",
+    "meaningLove": "Dificuldades difíceis de transpor no casal, orgulho excessivo e barreiras emocionais.",
+    "meaningWork": "Processos burocráticos travados, congelamento financeiro e desafios de alta complexidade.",
+    "meaningGeneral": "Grandes provações que exigem paciência, integridade e esforço contínuo para escalar.",
+    "imageUrl": "/cards/card-21.png"
+  },
+  {
+    "id": 22,
+    "name": "22. Os Caminhos",
+    "keywords": ["escolhas", "bifurcação", "livre-arbítrio", "alternativas", "decisões"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Momento crucial de decisão afetiva entre dois rumos ou escolha sobre o futuro da união.",
+    "meaningWork": "Diferentes propostas de trabalho na mesa; liberdade para escolher a sua própria rota.",
+    "meaningGeneral": "A vida coloca encruzilhadas diante de você; o rumo depende unicamente da sua escolha.",
+    "imageUrl": "/cards/card-22.png"
+  },
+  {
+    "id": 23,
+    "name": "23. Os Ratos",
+    "keywords": ["desgaste", "perdas", "roubo de energia", "estresse", "prejuízos"],
+    "polarity": "Negativa",
+    "meaningLove": "Relacionamento tóxico que consome suas forças emocionais e drena a autoestima.",
+    "meaningWork": "Gastos invisíveis, pequenos furtos, desfalques financeiros e estresse crônico.",
+    "meaningGeneral": "Vampirismo energético e ansiedade; cuide de onde sua energia vital está vazando.",
+    "imageUrl": "/cards/card-23.png"
+  },
+  {
+    "id": 24,
+    "name": "24. O Coração",
+    "keywords": ["amor verdadeiro", "paixão", "generosidade", "afeto sincero", "entrega"],
+    "polarity": "Positiva",
+    "meaningLove": "Sentimentos puros, reconciliação apaixonada, declaração sincera e plenitude afetiva.",
+    "meaningWork": "Trabalhar com o que realmente ama; motivação genuína e relações de empatia profissional.",
+    "meaningGeneral": "Coração leve, cura das dores e abundância de compaixão no peito.",
+    "imageUrl": "/cards/card-24.png"
+  },
+  {
+    "id": 25,
+    "name": "25. O Anel",
+    "keywords": ["compromisso", "aliança", "sociedade", "união formal", "pacto"],
+    "polarity": "Positiva",
+    "meaningLove": "Noivado, casamento, selamento de compromisso sério e lealdade duradoura.",
+    "meaningWork": "Assinatura de contratos vantajosos, sociedades bem alinhadas e acordos selados.",
+    "meaningGeneral": "Pactos cármicos, uniões sagradas e laços que fortalecem propósitos compartilhados.",
+    "imageUrl": "/cards/card-25.png"
+  },
+  {
+    "id": 26,
+    "name": "26. Os Livros",
+    "keywords": ["segredos", "conhecimento oculto", "estudos", "revelações", "mistério"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Algo que o parceiro ainda não contou, amor secreto ou mistérios a serem desvendados.",
+    "meaningWork": "Aperfeiçoamento técnico, cursos, auditorias e necessidade de estudo aprofundado.",
+    "meaningGeneral": "Verdades guardadas a sete chaves que serão abertas no tempo exato da sabedoria.",
+    "imageUrl": "/cards/card-26.png"
+  },
+  {
+    "id": 27,
+    "name": "27. A Carta",
+    "keywords": ["mensagens", "documentos", "notícias formais", "comunicados", "papéis"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Declarações escritas, mensagens por aplicativo ou cartas que definem o rumo afetivo.",
+    "meaningWork": "Resultados de exames, contratos por escrito, editais e notificações oficiais.",
+    "meaningGeneral": "Informações explícitas que chegam formalmente para trazer clareza a uma pendência.",
+    "imageUrl": "/cards/card-27.png"
+  },
+  {
+    "id": 28,
+    "name": "28. O Homem / O Cigano",
+    "keywords": ["figura masculina", "ação prática", "liderança", "racionalidade", "o consulente/parceiro"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Presença determinante de um parceiro ou homem influente na vida sentimental.",
+    "meaningWork": "Postura ativa, lógica e assertiva necessária para liderar seus negócios.",
+    "meaningGeneral": "O princípio ativo Yang, determinação e foco na realização material dos objetivos.",
+    "imageUrl": "/cards/card-28.png"
+  },
+  {
+    "id": 29,
+    "name": "29. A Mulher / A Cigana",
+    "keywords": ["figura feminina", "intuição", "acolhimento", "sensibilidade", "a consulente/parceira"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Presença marcante de uma parceira ou mulher sábia influenciando as decisões afetivas.",
+    "meaningWork": "Uso da sensibilidade, empatia e intuição apurada para conduzir negociações.",
+    "meaningGeneral": "O princípio receptivo Yin, sabedoria interna e escuta das percepções sutis da alma.",
+    "imageUrl": "/cards/card-29.png"
+  },
+  {
+    "id": 30,
+    "name": "30. Os Lírios",
+    "keywords": ["paz", "maturidade", "sabedoria", "pureza", "harmonia serena"],
+    "polarity": "Positiva",
+    "meaningLove": "Amor maduro, sereno e pacífico; tranquilidade e respeito mútuo cultivados ao longo do tempo.",
+    "meaningWork": "Carreira estabilizada, conduta ética irrepreensível e apoio de mentores experientes.",
+    "meaningGeneral": "Tranquilidade da alma, virtude, pureza de intenções e bênçãos de paz duradoura.",
+    "imageUrl": "/cards/card-30.png"
+  },
+  {
+    "id": 31,
+    "name": "31. O Sol",
+    "keywords": ["sucesso absoluto", "clareza", "vitalidade", "triunfo", "prosperidade"],
+    "polarity": "Positiva",
+    "meaningLove": "Paixão ardente, realização plena, felicidade total e verdade nua e crua.",
+    "meaningWork": "Grandes lucros, promoção indiscutível, vitória sobre concorrentes e brilho total.",
+    "meaningGeneral": "A força mais iluminada do oráculo; dispersa qualquer escuridão e traz o triunfo.",
+    "imageUrl": "/cards/card-31.png"
+  },
+  {
+    "id": 32,
+    "name": "32. A Lua",
+    "keywords": ["reconhecimento", "intuição", "méritos", "emoções profundas", "imaginação"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Encantamento romântico, atração magnética, noites inesquecíveis e conexão psíquica.",
+    "meaningWork": "Fama merecida, reconhecimento pelo talento artístico ou intelectual e honrarias.",
+    "meaningGeneral": "Ciclos emocionais, poderes intuitivos e conexão com os mistérios noturnos.",
+    "imageUrl": "/cards/card-32.png"
+  },
+  {
+    "id": 33,
+    "name": "33. A Chave",
+    "keywords": ["soluções", "destravamento", "respostas definitivas", "acesso", "sucesso"],
+    "polarity": "Positiva",
+    "meaningLove": "Solução de conflitos antigos, decisões firmes que abrem novos caminhos para o amor.",
+    "meaningWork": "Abertura de portas antes trancadas, novas oportunidades de ouro e êxito garantido.",
+    "meaningGeneral": "A solução está em suas mãos; certeza de que as respostas procuradas serão reveladas.",
+    "imageUrl": "/cards/card-33.png"
+  },
+  {
+    "id": 34,
+    "name": "34. Os Peixes",
+    "keywords": ["prosperidade", "dinheiro", "abundância", "fluxo financeiro", "multiplicação"],
+    "polarity": "Positiva",
+    "meaningLove": "Relacionamento generoso e fértil, onde ambos prosperam juntos com leveza.",
+    "meaningWork": "Entrada significativa de recursos financeiros, multiplicação de lucros e negócios férteis.",
+    "meaningGeneral": "Fluidez material e espiritual, corrente de abundância sem restrições.",
+    "imageUrl": "/cards/card-34.png"
+  },
+  {
+    "id": 35,
+    "name": "35. A Âncora",
+    "keywords": ["firmeza", "segurança", "estabilidade", "porto seguro", "determinação"],
+    "polarity": "Positiva",
+    "meaningLove": "Relação sólida e inabalável que resiste a todas as tempestades; compromisso fixo.",
+    "meaningWork": "Emprego seguro, estabilidade financeira a longo prazo e consolidação profissional.",
+    "meaningGeneral": "Atingir um porto seguro após navegar em mares revoltos; estabilidade interior.",
+    "imageUrl": "/cards/card-35.png"
+  },
+  {
+    "id": 36,
+    "name": "36. A Cruz",
+    "keywords": ["vitória com sacrifício", "provação", "carma", "fé inabalável", "superação"],
+    "polarity": "Neutra/Mutável",
+    "meaningLove": "Superação de um teste cármico no relacionamento; amor provado no fogo que se torna eterno.",
+    "meaningWork": "Carga pesada de trabalho temporária que resultará em conquista definitiva e honra.",
+    "meaningGeneral": "O fardo que se carrega com coragem para alcançar a vitória espiritual e a libertação.",
+    "imageUrl": "/cards/card-36.png"
+  }
+]

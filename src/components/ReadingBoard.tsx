@@ -28,7 +28,8 @@ export function ReadingBoard({ initialSession, onReset, initialNarration }: { in
   const [autoplayChapter, setAutoplayChapter] = useState<string | null>(null);
   const [showLiveInvite, setShowLiveInvite] = useState(false);
   const liveInviteDismissed = useRef(false);
-  const completed = useRef(false);
+  const previewCompleted = useRef(false);
+  const fullCompleted = useRef(false);
   const revealedEvents = useRef(new Set<number>());
   const chapterRef = useRef<HTMLDivElement>(null);
   const overviewOpened = useRef("");
@@ -40,14 +41,22 @@ export function ReadingBoard({ initialSession, onReset, initialNarration }: { in
   const chapter = activeView === "overview" && synthesisReady ? "synthesis" : "cards";
 
   useEffect(() => {
-    if (groupReady && enlargedPosition === null && !completed.current) {
-      completed.current = true;
+    if (revealingPosition !== null || enlargedPosition !== null) return;
+    if (!session.isPaid) {
+      if (revealed === 3 && !previewCompleted.current) {
+        previewCompleted.current = true;
+        setActiveView("overview");
+      }
+      return;
+    }
+    if (revealed === 5 && !fullCompleted.current) {
+      fullCompleted.current = true;
       setActiveView("overview");
-      if (session.isPaid && narration === true) {
+      if (narration === true) {
         setAutoplayChapter("synthesis");
       }
     }
-  }, [groupReady, session.isPaid, enlargedPosition, narration]);
+  }, [revealed, session.isPaid, enlargedPosition, revealingPosition, narration]);
 
   const reveal = (next: number) => {
     if (revealingPosition !== null) return;

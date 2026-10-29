@@ -48,7 +48,9 @@ export function SpreadBoard({ session, onReset, initialNarration }: { session: R
   const card = current === null ? null : session.cardsDrawn.find((item) => item.position === current) ?? null;
   const note = allReady ? session.cardNotes?.find((item) => item.position === current)?.text : undefined;
   const audioAvailable = narration === true && !synthesis;
-  const lockedMessage = allReady ? undefined : ready ? "A leitura desta linha está pronta na opção Leitura da linha. Os textos individuais, que podem cruzar outras linhas, serão liberados ao completar a mesa." : spread === "grand36" && session.methodVersion === "lenormand-grand36-v2" && chapter < physicalRows ? "Revele as nove cartas desta linha. A interpretação será apresentada em seguida." : "Primeiro revele todas as cartas da mesa. Depois, explore as interpretações e as relações entre elas.";
+  const isEarlyRowSpread = (spread === "grand36" && session.methodVersion === "lenormand-grand36-v2") ||
+    (spread === "box9" && session.methodVersion === "lenormand-box9-v2");
+  const lockedMessage = allReady ? undefined : ready ? "A leitura desta linha está pronta na opção Leitura da linha. Os textos individuais, que podem cruzar outras linhas, serão liberados ao completar a mesa." : isEarlyRowSpread && chapter < physicalRows ? `Revele as ${spread === "grand36" ? "nove" : "três"} cartas desta linha. A interpretação será apresentada em seguida.` : "Primeiro revele todas as cartas da mesa. Depois, explore as interpretações e as relações entre elas.";
   const focusReadingOnMobile = () => {
     if (!window.matchMedia("(max-width: 1023px)").matches) return;
     window.requestAnimationFrame(() => {
@@ -60,20 +62,23 @@ export function SpreadBoard({ session, onReset, initialNarration }: { session: R
   useEffect(() => {
     if (busy || enlargedPosition !== null) return;
     for (let r = 0; r < physicalRows; r++) {
+      const rowId = chapters[r]?.id || "";
       const rowPositions = chapters[r]?.positions || [];
       const rowComplete = rowPositions.length > 0 && rowPositions.every((pos) => pos <= revealed);
-      if (rowComplete && !consumedCompletions.current.has(r)) {
+      const rowCanRead = canReadChapter(spread, rowId, rowPositions, revealed, session.cardsDrawn.length, session.methodVersion);
+      if (rowComplete && rowCanRead && !consumedCompletions.current.has(r)) {
         consumedCompletions.current.add(r);
-        setChapter(r);
-        setActiveView("overview");
-        if (narration === true) {
-          const targetId = chapters[r]?.id || null;
-          setAutoplayChapter(targetId);
+        if (isEarlyRowSpread) {
+          setChapter(r);
+          setActiveView("overview");
+          if (narration === true) {
+            setAutoplayChapter(rowId);
+          }
+          break;
         }
-        break;
       }
     }
-  }, [busy, enlargedPosition, physicalRows, chapters, revealed, narration]);
+  }, [busy, enlargedPosition, physicalRows, chapters, revealed, narration, spread, session.cardsDrawn.length, session.methodVersion, isEarlyRowSpread]);
 
   useEffect(() => {
     const onChapterFocus = (event: Event) => {

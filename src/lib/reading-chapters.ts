@@ -45,5 +45,6 @@ export function canReadChapter(spread: SpreadId, id: string, positions: number[]
   if (positions.length === 0 || !positions.every((position) => position <= revealed)) return false;
   // Older texts can connect other rows; preserve them and wait for the full table.
   if (spread === "grand36" && /^section[1-4]$/.test(id) && methodVersion === "lenormand-grand36-v2") return true;
+  if (spread === "box9" && /^section[1-3]$/.test(id) && methodVersion === "lenormand-box9-v2") return true;
   return revealed >= total;
 }

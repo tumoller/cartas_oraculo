@@ -61,6 +61,8 @@ export function ReadingAudio({
   const followListening = useFollowListening();
   const endpoint = `/api/reading/${encodeURIComponent(sessionId)}/audio`;
   const statusUrl = `${endpoint}?chapter=${encodeURIComponent(chapter)}`;
+  const onAutoPlayConsumedRef = useRef(onAutoPlayConsumed);
+  onAutoPlayConsumedRef.current = onAutoPlayConsumed;
 
   useEffect(() => {
     const element = player.current;
@@ -162,28 +164,27 @@ export function ReadingAudio({
   useEffect(() => {
     if (!autoPlay || !playbackReady || soundEnabled !== true || isLiveVoiceActive()) return;
     if (userPaused.current) {
-      onAutoPlayConsumed?.();
+      onAutoPlayConsumedRef.current?.();
       return;
     }
-    if (status !== "ready" || !player.current || attemptedPlay.current === url) return;
+    if (status !== "ready" || !player.current || attemptedPlay.current === url) {
+      if (attemptedPlay.current === url) {
+        onAutoPlayConsumedRef.current?.();
+      }
+      return;
+    }
 
-    let active = true;
     attemptedPlay.current = url;
+    onAutoPlayConsumedRef.current?.();
+
     player.current.play()
       .then(() => {
-        if (active) {
-          setError("");
-          onAutoPlayConsumed?.();
-        }
+        setError("");
       })
       .catch(() => {
-        if (active) {
-          setError("O navegador pediu um toque para iniciar a narração. Toque em Reproduzir narração.");
-          onAutoPlayConsumed?.();
-        }
+        setError("O navegador pediu um toque para iniciar a narração. Toque em Reproduzir narração.");
       });
-    return () => { active = false; };
-  }, [autoPlay, playbackReady, soundEnabled, status, url, onAutoPlayConsumed]);
+  }, [autoPlay, playbackReady, soundEnabled, status, url]);
 
   const resumeAudio = () => {
     if (!playbackReady || isLiveVoiceActive()) return;
@@ -218,7 +219,7 @@ export function ReadingAudio({
             onPause={() => {
               if (player.current && !player.current.ended && soundEnabled === true) {
                 userPaused.current = true;
-                onAutoPlayConsumed?.();
+                onAutoPlayConsumedRef.current?.();
               }
             }}
             onEnded={() => {

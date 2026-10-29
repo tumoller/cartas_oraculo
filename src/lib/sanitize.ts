@@ -26,7 +26,7 @@ interface SessionData {
  */
 export function sanitizeReadingSession(session: SessionData): ReadingSessionPayload {
   const cards = session.cardsDrawn as Card[];
-  const ai = session.aiReading as AiReading & { question?: string; methodVersion?: string; spread?: ReadingSessionPayload["spread"]; sections?: ReadingSessionPayload["sections"]; cardNotes?: ReadingSessionPayload["cardNotes"] };
+  const ai = session.aiReading as AiReading & { question?: string; methodVersion?: string; spread?: ReadingSessionPayload["spread"]; readingDepth?: ReadingSessionPayload["readingDepth"]; sections?: ReadingSessionPayload["sections"]; cardNotes?: ReadingSessionPayload["cardNotes"] };
   const isPaid = Boolean(session.isPaid);
 
   let sanitizedCards: PublicCard[];
@@ -96,11 +96,14 @@ export function sanitizeReadingSession(session: SessionData): ReadingSessionPayl
   return {
     id: session.id,
     spread: ai.spread || "line5",
-    sections: isPaid ? ai.sections : undefined,
+    sections: isPaid && ai.readingDepth === "basic" && (ai.spread === "box9" || ai.spread === "grand36")
+      ? ai.sections?.filter((section) => /^section[1-4]$/.test(section.id) && Number(section.id.slice(7)) <= (ai.spread === "box9" ? 3 : 4))
+      : isPaid ? ai.sections : undefined,
     cardNotes: isPaid ? ai.cardNotes : undefined,
     userName: session.userName,
     question: ai.question,
     methodVersion: ai.methodVersion,
+    readingDepth: ai.readingDepth === "basic" ? "basic" : "complete",
     persona: session.persona,
     theme: session.theme,
     cardsDrawn: sanitizedCards,

@@ -20,6 +20,39 @@ function load(file, overrides = {}) {
   return module.exports;
 }
 const cards = require('../src/data/baralho.json');
+
+test('nova consulta cigana preserva a carta 28 e inclui sua arte corrigida', async () => {
+  const prior = process.env.ORACLE_ACCESS_SECRET;
+  process.env.ORACLE_ACCESS_SECRET = 'test-only-secret';
+  let saved;
+  const drawn = [cards.find(card => card.id === 28), ...cards.slice(0, 4)];
+  const reading = {card1Reading:'um',card2Reading:'dois',card3Teaser:'três',card3Full:'centro',card4Reading:'quatro',card5Reading:'cinco',generalSynthesis:'síntese'};
+  const route = load('src/app/api/reading/start/route.ts', {
+    '@/lib/prisma': {prisma: {readingSession: {
+      findUnique: async () => undefined,
+      create: async ({data}) => (saved = {...data, createdAt:new Date()}),
+      update: async ({data}) => (saved = {...saved, ...data}),
+    }}},
+    '@/lib/draw': {drawDistinctCards: () => drawn},
+    '@/lib/gemini': {generateOraculoReading: async () => reading},
+  });
+  try {
+    const response = await route.POST(new NextRequest('http://localhost/api/reading/start', {
+      method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({
+        userName:'Teste', persona:'Cigana Tradicional', theme:'Amor & Relacionamento',
+        requestId:'33333333-3333-4333-8333-333333333333', requestKey:'44444444-4444-4444-8444-444444444444',
+      }),
+    }));
+    assert.equal(response.status, 201);
+    const result = await response.json();
+    assert.equal(result.cardsDrawn[0].id, 28);
+    assert.equal(result.cardsDrawn[0].imageUrl, '/cards/cigano/card-28.jpg');
+    assert.deepEqual(saved.cardsDrawn.map(card => card.id), drawn.map(card => card.id));
+    assert.equal(result.cardsDrawn[3].imageUrl, null);
+  } finally {
+    if (prior === undefined) delete process.env.ORACLE_ACCESS_SECRET; else process.env.ORACLE_ACCESS_SECRET = prior;
+  }
+});
 test('nome da carta 11 acompanha a arte cigana sem alterar outros baralhos ou o acervo', () => {
   const {cardNameForDeck} = load('src/lib/card-name.ts');
   const card = cards.find(c => c.id === 11);
@@ -43,12 +76,58 @@ test('mesa de 36 preserva todas as posições e vizinhança não atravessa linha
   assert.deepEqual(box.slice(0,3).map(s=>s.positions),[[1,2,3],[4,5,6],[7,8,9]]);
   assert.deepEqual(box[3].positions,[1,4,7,2,5,8,3,6,9]);
   assert.deepEqual(box[4].positions,[1,5,9,3,7]);
+  assert.deepEqual(spreadSections('box9',deck.slice(0,9),'Amor & Relacionamento','basic').map(s=>s.id),['section1','section2','section3']);
+  assert.deepEqual(spreadSections('grand36',deck,'Amor & Relacionamento','basic').map(s=>s.id),['section1','section2','section3','section4']);
   assert.equal(box[3].title,'Colunas e carta central');
   assert.equal(box[4].title,'Diagonais do quadro');
   assert.deepEqual(spreadSections('line3',deck.slice(0,3),'Amor & Relacionamento').map(s=>s.positions),[[1,2,3]]);
   assert.throws(()=>spreadSections('line5',deck,'Amor & Relacionamento'));
   const {drawDistinctCards} = load('src/lib/draw.ts');
   assert.equal(new Set(drawDistinctCards(36).map(c=>c.id)).size,36);
+});
+
+test('profundidade básica é salva, aplicada na geração e não entrega relações extras', async () => {
+  const oldDemo = process.env.ORACLE_DEMO_MODE;
+  const oldSecret = process.env.ORACLE_ACCESS_SECRET;
+  process.env.ORACLE_DEMO_MODE = 'true';
+  process.env.ORACLE_ACCESS_SECRET = 'test-only-secret';
+  let state; const generatedDepths=[];
+  const db = {readingSession:{findUnique:async()=>state,create:async({data})=>(state={...data,createdAt:new Date()}),update:async({data})=>(state={...state,...data}),updateMany:async({data})=>{state={...state,...data};return {count:1}}}};
+  const route = load('src/app/api/reading/start/route.ts', {
+    '@/lib/prisma':{prisma:db},
+    '@/lib/draw':{drawDistinctCards:()=>cards.slice(0,9)},
+    '@/lib/spreads':{SPREADS:load('src/lib/spread-config.ts').SPREADS,generateSpreadReading:async({readingDepth})=>{
+      generatedDepths.push(readingDepth);
+      return {sections:[
+        ...[1,2,3].map(n=>({id:`section${n}`,title:`Linha ${n}`,positions:[n],text:`Linha ${n}`})),
+        {id:'section4',title:'Colunas',positions:[1,4,7],text:'Não entregar'},
+      ],cardNotes:[],generalSynthesis:'Síntese básica'};
+    }},
+  });
+  const body={userName:'Teste',persona:'Oráculo da Galáxia',theme:'Amor & Relacionamento',spread:'box9',readingDepth:'basic',demoAccess:true,requestId:'55555555-5555-4555-8555-555555555555',requestKey:'66666666-6666-4666-8666-666666666666'};
+  const request=()=>new NextRequest('http://localhost/api/reading/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  try {
+    const response=await route.POST(request());
+    assert.equal(response.status,201);
+    const result=await response.json();
+    assert.deepEqual(generatedDepths,['basic']);
+    assert.equal(result.readingDepth,'basic');
+    assert.deepEqual(result.sections.map(s=>s.id),['section1','section2','section3']);
+    assert.equal(state.aiReading.readingDepth,'basic');
+    const repeat=await route.POST(request());
+    assert.equal(repeat.status,200);
+    assert.deepEqual((await repeat.json()).sections,result.sections);
+    state.aiReading={...state.aiReading,status:'failed'};
+    const retry=await route.POST(new NextRequest('http://localhost/api/reading/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...body,readingDepth:'complete'})}));
+    assert.equal(retry.status,201);
+    assert.deepEqual(generatedDepths,['basic','basic']);
+    assert.equal((await retry.json()).readingDepth,'basic');
+    const invalid=await route.POST(new NextRequest('http://localhost/api/reading/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...body,readingDepth:'premium'})}));
+    assert.equal(invalid.status,400);
+  } finally {
+    if(oldDemo===undefined) delete process.env.ORACLE_DEMO_MODE; else process.env.ORACLE_DEMO_MODE=oldDemo;
+    if(oldSecret===undefined) delete process.env.ORACLE_ACCESS_SECRET; else process.env.ORACLE_ACCESS_SECRET=oldSecret;
+  }
 });
 
 test('vizinhança do tema respeita canto, interior e borda da mesa de 36', () => {

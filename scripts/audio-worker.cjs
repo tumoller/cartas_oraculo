@@ -1,6 +1,7 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const net = require("node:net");
 
 const root = () => process.env.ORACLE_AUDIO_DIR || path.join(process.cwd(), ".data", "audio");
 const paths = (key) => ({
@@ -9,6 +10,17 @@ const paths = (key) => ({
   file: path.join(root(), "files", `${key}.wav`),
 });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ponytail: local lock only; use a shared coordinator if workers move to multiple hosts.
+async function acquireWorkerLock(audioDir = root(), portOverride) {
+  const port = portOverride ?? 20000 + crypto.createHash("sha256").update(path.resolve(audioDir).toLowerCase()).digest().readUInt32BE(0) % 40000;
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", () => { server.off("error", reject); resolve(); });
+  });
+  return server;
+}
 
 async function atomicWrite(file, data) {
   await fs.mkdir(path.dirname(file), { recursive: true });
@@ -94,24 +106,25 @@ async function main() {
   require("@next/env").loadEnvConfig(process.cwd());
   if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY ausente; fila preservada para próxima inicialização");
   await fs.mkdir(root(), { recursive: true });
-  const lock = path.join(root(), "worker.lock");
-  try {
-    await fs.writeFile(lock, String(process.pid), { flag: "wx" });
-  } catch (error) {
-    if (error.code !== "EEXIST") throw error;
-    const previous = Number(await fs.readFile(lock, "utf8"));
-    try { process.kill(previous, 0); throw new Error(`Worker já ativo (PID ${previous})`); }
-    catch (check) { if (check.code !== "ESRCH") throw check; }
-    await fs.rm(lock, { force: true });
-    await fs.writeFile(lock, String(process.pid), { flag: "wx" });
-  }
-  const release = () => { fs.rm(lock, { force: true }).catch(() => {}); };
-  process.on("SIGINT", () => { release(); process.exit(0); });
-  process.on("SIGTERM", () => { release(); process.exit(0); });
+  const lock = await acquireWorkerLock();
+  let stopping = false;
+  let releasePromise;
+  const release = () => releasePromise ??= new Promise((resolve) => lock.close(resolve));
+  const stop = () => {
+    if (stopping) return;
+    stopping = true;
+    void release().then(() => process.exit(0));
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
   try {
     do { await runOnce(); if (process.argv.includes("--once")) break; await sleep(3000); } while (true);
-  } finally { await fs.rm(lock, { force: true }); }
+  } finally {
+    process.off("SIGINT", stop);
+    process.off("SIGTERM", stop);
+    await release();
+  }
 }
 
-module.exports = { generate, processJob, runOnce };
+module.exports = { generate, processJob, runOnce, acquireWorkerLock };
 if (require.main === module) main().catch((error) => { console.error(error); process.exitCode = 1; });

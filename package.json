@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "next start",
+    "start": "node scripts/start.cjs",
+    "start:web": "next start",
     "audio:worker": "node scripts/audio-worker.cjs",
     "audio:welcomes": "node scripts/prepare-welcomes.cjs",
     "lint": "eslint .",

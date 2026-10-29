@@ -31,7 +31,7 @@ export function chapterHint(spread: SpreadId, id: string): string {
   if (spread === "grand36") {
     if (/^section[1-4]$/.test(id)) return "Nove cartas de uma mesma linha. Veja o sentido do conjunto e depois explore cada imagem.";
     if (id === "section5") return "A carta do tema e suas vizinhas imediatas dentro da mesa de 36 cartas.";
-    if (id === "section6") return "Os quatro cantos mostram uma moldura da mesa; a síntese considera o conjunto.";
+    if (id === "section6") return "Uma leitura das relações entre as quatro cartas que ocupam os cantos da mesa.";
   }
   return "";
 }

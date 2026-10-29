@@ -5,3 +5,4 @@ export const SPREADS = {
   grand36: { title: "Mesa completa de 36 cartas", count: 36 },
 } as const;
 export type SpreadId = keyof typeof SPREADS;
+export type ReadingDepth = "basic" | "complete";

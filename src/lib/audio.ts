@@ -11,13 +11,9 @@ type Reading = AiReading & { spread?: string; sections?: { id: string; title: st
 export function audioChapters(reading: Reading): { chapter: string; title: string }[] {
   if (reading.spread === "line5") return [{ chapter: "synthesis", title: "Leitura das cinco cartas" }];
   const sections = Array.isArray(reading.sections) ? reading.sections : [];
-  const rowCount = reading.spread === "line3" ? 1 : reading.spread === "box9" ? 3 : reading.spread === "grand36" ? 4
-    : sections[0]?.positions?.length === 3 && sections.length === 1 ? 1
-      : sections[0]?.positions?.length === 3 && sections.length >= 3 ? 3
-        : sections[0]?.positions?.length === 9 && sections.length >= 4 ? 4 : 0;
-  if (!rowCount) return [{ chapter: "synthesis", title: "Leitura das cinco cartas" }];
-  const rows = sections.slice(0, rowCount).map((section, index) => ({ chapter: `section${index + 1}`, title: section.title || `Linha ${index + 1}` }));
-  return rowCount === 1 ? rows : [...rows, { chapter: "synthesis", title: "Resumo final" }];
+  if (!sections.length) return [{ chapter: "synthesis", title: "Leitura das cinco cartas" }];
+  const chapters = sections.map((section, index) => ({ chapter: `section${index + 1}`, title: section.title || `Parte ${index + 1}` }));
+  return chapters.length === 1 ? chapters : [...chapters, { chapter: "synthesis", title: "Resumo final" }];
 }
 
 export function chapterText(reading: Reading, chapter: AudioChapter): string {

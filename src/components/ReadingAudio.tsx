@@ -30,10 +30,20 @@ export function ReadingAudio({
   sessionId,
   chapter,
   title,
+  prepare = false,
+  autoPlay = false,
+  playbackReady = true,
+  onAutoPlayConsumed,
+  onEnded,
 }: {
   sessionId: string;
   chapter: string;
   title?: string;
+  prepare?: boolean;
+  autoPlay?: boolean;
+  playbackReady?: boolean;
+  onAutoPlayConsumed?: () => void;
+  onEnded?: () => void;
 }) {
   const [audio, setAudio] = useState<ChapterAudio | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,6 +52,10 @@ export function ReadingAudio({
   const [pollingPaused, setPollingPaused] = useState(false);
   const pendingSince = useRef<number | null>(null);
   const player = useRef<HTMLAudioElement>(null);
+  const prepared = useRef(false);
+  const requesting = useRef(false);
+  const attemptedPlay = useRef("");
+  const userPaused = useRef(false);
   const playerId = useId();
   const soundEnabled = useSoundPreference();
   const followListening = useFollowListening();
@@ -52,7 +66,7 @@ export function ReadingAudio({
     const element = player.current;
     if (!element) return;
     return monitorMediaVoice(element, "chapter", chapter);
-  }, [chapter, audio?.status, soundEnabled]);
+  }, [chapter, soundEnabled]);
 
   useEffect(() => {
     const pauseOtherAudio = (event: Event) => {
@@ -101,8 +115,10 @@ export function ReadingAudio({
 
   const verify = () => refresh().catch((cause) => setError(cause instanceof Error ? cause.message : "Não foi possível verificar a narração."));
 
-  const requestAudio = async () => {
-    if (busy || soundEnabled !== true) return;
+  const requestAudio = useCallback(async () => {
+    if (requesting.current || soundEnabled !== true) return;
+    requesting.current = true;
+    prepared.current = true;
     setBusy(true);
     setError("");
     setPollingPaused(false);
@@ -128,27 +144,93 @@ export function ReadingAudio({
         setError("Não foi possível confirmar o pedido. Verifique a narração antes de solicitar novamente.");
       }
     } finally {
+      requesting.current = false;
       setBusy(false);
     }
-  };
+  }, [soundEnabled, chapter, title, endpoint, refresh]);
+
+  useEffect(() => {
+    if (!prepare || soundEnabled !== true || audio?.status !== "not_started" || prepared.current) return;
+    prepared.current = true;
+    void requestAudio();
+  }, [prepare, soundEnabled, audio?.status, requestAudio]);
 
   const status = audio?.status;
   const url = audio?.url ?? `${endpoint}/${encodeURIComponent(chapter)}`;
   const waiting = status === "pending" || status === "generating";
 
+  useEffect(() => {
+    if (!autoPlay || !playbackReady || soundEnabled !== true || isLiveVoiceActive()) return;
+    if (userPaused.current) {
+      onAutoPlayConsumed?.();
+      return;
+    }
+    if (status !== "ready" || !player.current || attemptedPlay.current === url) return;
+
+    let active = true;
+    attemptedPlay.current = url;
+    player.current.play()
+      .then(() => {
+        if (active) {
+          setError("");
+          onAutoPlayConsumed?.();
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError("O navegador pediu um toque para iniciar a narração. Toque em Reproduzir narração.");
+          onAutoPlayConsumed?.();
+        }
+      });
+    return () => { active = false; };
+  }, [autoPlay, playbackReady, soundEnabled, status, url, onAutoPlayConsumed]);
+
+  const resumeAudio = () => {
+    if (!playbackReady || isLiveVoiceActive()) return;
+    userPaused.current = false;
+    void player.current?.play().then(() => setError("")).catch(() => setError("Não foi possível iniciar a narração neste dispositivo."));
+  };
+
   return (
     <div className="reading-audio my-4 rounded-xl bg-slate-950/35 p-3 sm:p-4" aria-live="polite">
       {soundEnabled !== true ? (
         <p className="text-sm text-slate-300">Ative o som no avatar para ouvir esta parte.</p>
+      ) : !playbackReady ? (
+        <p className="text-sm text-slate-300">A narração ficará disponível quando esta parte da leitura for revelada.</p>
       ) : status === "ready" ? (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Narração desta parte</p>
-          <audio ref={player} controls preload="none" src={url} onPlay={(event) => {
-            if (isLiveVoiceActive()) { event.currentTarget.pause(); setError("Encerre a conversa ao vivo antes de ouvir esta narração."); return; }
-            setError("");
-            window.dispatchEvent(new CustomEvent("oracle-audio-start", { detail: playerId }));
-            if (followListening) window.dispatchEvent(new CustomEvent("oracle-chapter-focus", { detail: { sessionId, chapter } }));
-          }} onError={() => setMediaError(true)} onCanPlay={() => setMediaError(false)} className="w-full max-w-md" aria-label={`Ouvir narração: ${audio?.title ?? title ?? chapter}`} />
+          <audio
+            ref={player}
+            controls
+            preload="none"
+            src={url}
+            onPlay={(event) => {
+              if (!playbackReady || isLiveVoiceActive()) {
+                event.currentTarget.pause();
+                setError(isLiveVoiceActive() ? "Encerre a conversa ao vivo antes de ouvir esta narração." : "A narração desta parte ainda não pode ser reproduzida.");
+                return;
+              }
+              userPaused.current = false;
+              setError("");
+              window.dispatchEvent(new CustomEvent("oracle-audio-start", { detail: playerId }));
+            }}
+            onPause={() => {
+              if (player.current && !player.current.ended && soundEnabled === true) {
+                userPaused.current = true;
+                onAutoPlayConsumed?.();
+              }
+            }}
+            onEnded={() => {
+              onEnded?.();
+              window.dispatchEvent(new CustomEvent("oracle-chapter-ended", { detail: { sessionId, chapter } }));
+            }}
+            onError={() => setMediaError(true)}
+            onCanPlay={() => setMediaError(false)}
+            className="w-full max-w-md"
+            aria-label={`Ouvir narração: ${audio?.title ?? title ?? chapter}`}
+          />
+          {error && <button type="button" onClick={resumeAudio} className="min-h-12 rounded-xl border border-amber-400/40 px-4 text-sm font-semibold text-amber-200">Reproduzir narração</button>}
           {mediaError && <p className="text-xs text-rose-300" role="alert">Não foi possível reproduzir este áudio. Verifique a narração e tente novamente.</p>}
           {mediaError && <button type="button" onClick={verify} className="text-xs text-amber-200 underline underline-offset-4">Verificar narração</button>}
           <a className="block w-fit text-xs text-slate-300 underline underline-offset-4 hover:text-white" href={audio?.downloadUrl ?? `${url}?download=1`} download>

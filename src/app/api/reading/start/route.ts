@@ -6,6 +6,7 @@ import { drawDistinctCards } from "@/lib/draw";
 import { cardNameForDeck } from "@/lib/card-name";
 import { generateOraculoReading } from "@/lib/gemini";
 import { generateSpreadReading, SPREADS, SpreadId } from "@/lib/spreads";
+import type { ReadingDepth } from "@/lib/spread-config";
 import { prisma } from "@/lib/prisma";
 import { sanitizeReadingSession } from "@/lib/sanitize";
 import { grantReadingAccess, validReadingId } from "@/lib/reading-access";
@@ -15,9 +16,10 @@ export async function POST(req: NextRequest) {
   let draftId: string | undefined;
   let metadata: Record<string, unknown> = {};
   try {
-    const { userName, persona, theme, question = "", spread = "line5", requestId, requestKey, demoAccess = false } = await req.json();
+    const { userName, persona, theme, question = "", spread = "line5", readingDepth = "complete", requestId, requestKey, demoAccess = false } = await req.json();
     if (typeof userName !== "string" || !userName.trim() || userName.trim().length > 40 || typeof question !== "string" || question.length > 500) return NextResponse.json({ error: "Informe seu primeiro nome e uma pergunta de até 500 caracteres." }, { status: 400 });
     if (!["Oráculo da Galáxia", "Cigana Tradicional", "Linha de Umbanda"].includes(persona) || !["Amor & Relacionamento", "Trabalho & Dinheiro", "Amizades & Caminhos"].includes(theme) || !Object.hasOwn(SPREADS, spread)) return NextResponse.json({ error: "Escolha uma abordagem, tema e tiragem válidos." }, { status: 400 });
+    if (!["basic", "complete"].includes(readingDepth) || (readingDepth === "basic" && spread !== "box9" && spread !== "grand36")) return NextResponse.json({ error: "Escolha uma profundidade válida para esta tiragem." }, { status: 400 });
     if (typeof requestId !== "string" || !validReadingId(requestId) || typeof requestKey !== "string" || !validReadingId(requestKey)) return NextResponse.json({ error: "Identificação da consulta ausente. Reabra o formulário." }, { status: 400 });
     const requestHash = createHash("sha256").update(requestKey).digest("hex");
     let draft = await prisma.readingSession.findUnique({ where: { id: requestId } });
@@ -36,9 +38,9 @@ export async function POST(req: NextRequest) {
         const jpg = `/cards/${deckFolder}/card-${card.id}.jpg`;
         const png = `/cards/${deckFolder}/card-${card.id}.png`;
         const imageUrl = existsSync(path.join(process.cwd(), "public", jpg)) ? jpg : png;
-        return { ...card, name: cardNameForDeck(card, persona)!, imageUrl: !(deckFolder === "cigano" && card.id === 28) && existsSync(path.join(process.cwd(), "public", imageUrl)) ? imageUrl : "" };
+        return { ...card, name: cardNameForDeck(card, persona)!, imageUrl: existsSync(path.join(process.cwd(), "public", imageUrl)) ? imageUrl : "" };
       });
-      metadata = { requestHash, status: "generating", question: question.trim(), spread, methodVersion: spread === "line5" ? "lenormand-line-v1" : `lenormand-${spread}-v2` };
+      metadata = { requestHash, status: "generating", question: question.trim(), spread, readingDepth, methodVersion: spread === "line5" ? "lenormand-line-v1" : `lenormand-${spread}-v2` };
       draft = await prisma.readingSession.create({ data: { id: requestId, userName: userName.trim(), persona, theme, cardsDrawn: cards as any, aiReading: metadata as any, isPaid: spread !== "line5" } });
     }
     draftId = draft.id;
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
     const cardsDrawn = draft.cardsDrawn as unknown as Card[];
     const savedSpread = metadata.spread as SpreadId;
     const params = { userName: draft.userName, persona: draft.persona, theme: draft.theme, question: metadata.question as string, cardsDrawn };
-    const reading = savedSpread === "line5" ? await generateOraculoReading(params) : await generateSpreadReading({ ...params, spread: savedSpread, cards: cardsDrawn });
+    const reading = savedSpread === "line5" ? await generateOraculoReading(params) : await generateSpreadReading({ ...params, spread: savedSpread, cards: cardsDrawn, readingDepth: (metadata.readingDepth as ReadingDepth) || "complete" });
     const session = await prisma.readingSession.update({ where: { id: draft.id }, data: { aiReading: { ...metadata, ...reading, status: "ready" } as any } });
     return grantReadingAccess(NextResponse.json(sanitizeReadingSession(session), { status: 201 }), req, session.id);
   } catch (error: any) {

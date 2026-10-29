@@ -15,16 +15,17 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { CosmicBackground } from "@/components/CosmicBackground";
 import { ReadingBoard } from "@/components/ReadingBoard";
 import { SpreadBoard } from "@/components/SpreadBoard";
 import { SPREADS, SpreadId } from "@/lib/spread-config";
-import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
+import { setSoundPreference } from "@/lib/sound-preference";
 import { getReadingFontSize, setReadingFontSize } from "@/lib/reading-font";
 import { PersonaType, ThemeType, ReadingSessionPayload } from "@/types";
 
-const PERSONAS: { id: PersonaType; title: string; desc: string; icon: any }[] = [
+const PERSONAS: { id: PersonaType; title: string; desc: string; icon: LucideIcon }[] = [
   {
     id: "Oráculo da Galáxia",
     title: "Oráculo da Galáxia",
@@ -45,7 +46,7 @@ const PERSONAS: { id: PersonaType; title: string; desc: string; icon: any }[] = 
   },
 ];
 
-const THEMES: { id: ThemeType; title: string; desc: string; icon: any }[] = [
+const THEMES: { id: ThemeType; title: string; desc: string; icon: LucideIcon }[] = [
   {
     id: "Amor & Relacionamento",
     title: "Amor & Relacionamento",
@@ -71,6 +72,9 @@ export default function Home() {
   const [userName, setUserName] = useState("");
   const [question, setQuestion] = useState("");
   const [spread, setSpread] = useState<SpreadId>("line5");
+  const [readingDepth, setReadingDepth] = useState<"basic" | "complete">("basic");
+  const [narrationChoice, setNarrationChoice] = useState<boolean | null>(null);
+  const [initialNarration, setInitialNarration] = useState<boolean | undefined>();
   const [demoAccess, setDemoAccess] = useState(false);
   const [recent, setRecent] = useState<{id:string;label:string}[]>([]);
   const [requestIdentity, setRequestIdentity] = useState<{requestId:string;requestKey:string} | null>(null);
@@ -81,7 +85,6 @@ export default function Home() {
     useState<ThemeType>("Amor & Relacionamento");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
-  const soundPreference = useSoundPreference();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<ReadingSessionPayload | null>(
     null
@@ -96,6 +99,9 @@ export default function Home() {
 
   useEffect(() => {
     setReadingFontSize(getReadingFontSize());
+    let active = true;
+    queueMicrotask(() => {
+    if (!active) return;
     try {
       const saved = JSON.parse(localStorage.getItem("oracle_recent") || "[]");
       if (Array.isArray(saved)) setRecent(saved.filter((item) => typeof item?.id === "string" && typeof item?.label === "string").slice(0, 20));
@@ -105,8 +111,11 @@ export default function Home() {
         setUserName(pending.userName || ""); setQuestion(pending.question || "");
         setSelectedPersona(pending.persona); setSelectedTheme(pending.theme);
         setSpread(pending.spread || "line5"); setDemoAccess(Boolean(pending.demoAccess));
+        setReadingDepth(pending.readingDepth === "basic" ? "basic" : "complete");
       }
     } catch { /* navegador sem armazenamento: a consulta atual continua funcional */ }
+    });
+    return () => { active = false; };
   }, []);
 
   const openSaved = async (id: string) => {
@@ -116,8 +125,8 @@ export default function Home() {
       const response = await fetch(`/api/reading/${id}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível abrir a consulta.");
-      setSessionData(data); setStep("reading"); window.scrollTo({top:0});
-    } catch (error: any) { setErrorMessage(error.message); }
+      setInitialNarration(undefined); setSessionData(data); setStep("reading"); window.scrollTo({top:0});
+    } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Não foi possível abrir a consulta."); }
     finally { setIsLoading(false); }
   };
 
@@ -128,7 +137,7 @@ export default function Home() {
       setErrorMessage("Por favor, digite o seu primeiro nome.");
       return;
     }
-    if (soundPreference === null) {
+    if (narrationChoice === null) {
       setErrorMessage("Escolha se deseja começar com som ou sem som.");
       return;
     }
@@ -143,7 +152,8 @@ export default function Home() {
       const uuid = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (character) => (Number(character) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(character) / 4).toString(16));
       const identity = requestIdentity || { requestId: uuid(), requestKey: uuid() };
       setRequestIdentity(identity);
-      try { localStorage.setItem("oracle_pending", JSON.stringify({identity,userName,question,persona:selectedPersona,theme:selectedTheme,spread,demoAccess})); } catch {}
+      const depth = spread === "box9" || spread === "grand36" ? readingDepth : "complete";
+      try { localStorage.setItem("oracle_pending", JSON.stringify({identity,userName,question,persona:selectedPersona,theme:selectedTheme,spread,readingDepth:depth,demoAccess})); } catch {}
       const response = await fetch("/api/reading/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,7 +162,7 @@ export default function Home() {
           persona: selectedPersona,
           theme: selectedTheme,
           question: question.trim(),
-          spread, demoAccess, ...identity,
+          spread, readingDepth: depth, demoAccess, ...identity,
         }),
       });
 
@@ -162,16 +172,17 @@ export default function Home() {
         throw new Error(data.error || "Erro ao consultar o oráculo.");
       }
 
+      setInitialNarration(narrationChoice);
       setSessionData(data);
       const updated = [{id:data.id,label:`${data.userName} · ${SPREADS[data.spread as SpreadId || "line5"].title}`}, ...recent.filter((item) => item.id !== data.id)].slice(0,20);
       setRecent(updated); setRequestIdentity(null);
       try { localStorage.setItem("oracle_recent",JSON.stringify(updated)); localStorage.removeItem("oracle_pending"); } catch {}
       setStep("reading");
       window.scrollTo({ top: 0, behavior: "instant" });
-    } catch (err: any) {
+    } catch (err) {
       console.error("Falha ao iniciar leitura:", err);
       setErrorMessage(
-        err.message || "Erro de conexão com o oráculo. Tente novamente."
+        err instanceof Error ? err.message : "Erro de conexão com o oráculo. Tente novamente."
       );
     } finally {
       inFlight.current = false;
@@ -181,6 +192,8 @@ export default function Home() {
 
   const handleReset = () => {
     setSessionData(null);
+    setInitialNarration(undefined);
+    setNarrationChoice(null);
     setStep("form");
     window.scrollTo({ top: 0, behavior: "instant" });
   };
@@ -190,7 +203,7 @@ export default function Home() {
       {sceneTheme === "cosmico" && <CosmicBackground />}
 
       {step === "reading" && sessionData ? (
-        sessionData.sections ? <SpreadBoard session={sessionData} onReset={handleReset} /> : <ReadingBoard initialSession={sessionData} onReset={handleReset} />
+        sessionData.sections ? <SpreadBoard key={sessionData.id} session={sessionData} onReset={handleReset} initialNarration={initialNarration} /> : <ReadingBoard key={sessionData.id} initialSession={sessionData} onReset={handleReset} initialNarration={initialNarration} />
       ) : (
         /* FORMULÁRIO DE ENTRADA (PASSO 1) */
         <div ref={(element) => { if (element) element.inert = isLoading; }} className="w-full min-w-0 max-w-2xl bg-slate-900/80 border border-slate-800 rounded-3xl p-4 sm:p-10 shadow-2xl backdrop-blur-md cosmic-card-glow my-8">
@@ -349,16 +362,24 @@ export default function Home() {
             </fieldset>
 
             <fieldset className="min-w-0"><legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Escolha quantas cartas abrir</legend><div className="grid grid-cols-2 gap-2">{Object.entries(SPREADS).map(([id,item]) => <button key={id} type="button" disabled={Boolean(requestIdentity)} aria-pressed={spread === id} onClick={() => { setSpread(id as SpreadId); setDemoAccess(false); }} className={`min-w-0 p-3 rounded-xl border text-left text-sm ${spread === id ? "border-amber-400 bg-amber-950/40 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-300"}`}>{item.title}</button>)}</div></fieldset>
+            {(spread === "box9" || spread === "grand36") ? <fieldset disabled={Boolean(requestIdentity)} className="min-w-0 disabled:opacity-70">
+              <legend className="mb-2 text-sm font-bold text-slate-200">Profundidade da leitura</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button type="button" aria-pressed={readingDepth === "basic"} onClick={() => setReadingDepth("basic")} className={`min-h-12 rounded-xl border p-3 text-left text-sm ${readingDepth === "basic" ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 text-slate-200"}`}><strong className="block">Básico</strong><span>Leitura das linhas e síntese geral.</span></button>
+                <button type="button" aria-pressed={readingDepth === "complete"} onClick={() => setReadingDepth("complete")} className={`min-h-12 rounded-xl border p-3 text-left text-sm ${readingDepth === "complete" ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 text-slate-200"}`}><strong className="block">Completo</strong><span>{spread === "box9" ? "Linhas, colunas, centro, diagonais e síntese." : "Linhas, vizinhança do tema, quatro cantos e síntese."}</span></button>
+              </div>
+            </fieldset> : <p className="text-sm text-slate-300">Centro e combinações integrados à leitura da linha.</p>}
             {spread !== "line5" && <label className="flex gap-3 text-sm text-slate-300 rounded-xl p-4 bg-indigo-950/40 border border-indigo-500/30"><input type="checkbox" checked={demoAccess} disabled={Boolean(requestIdentity)} onChange={(event) => setDemoAccess(event.target.checked)} required className="mt-1" /><span>Quero ver a leitura completa nesta demonstração. Não há cobrança.</span></label>}
 
             <fieldset className="min-w-0">
-              <legend className="block text-sm font-bold text-slate-200 mb-2">Como prefere começar?</legend>
+              <legend className="block text-sm font-bold text-slate-200 mb-2">Gostaria de ouvir a leitura?</legend>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="group" aria-label="Som da consulta">
-                <button type="button" aria-pressed={soundPreference === true} onClick={() => setSoundPreference(true)} className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium ${soundPreference === true ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-200"}`}>Começar com som</button>
-                <button type="button" aria-pressed={soundPreference === false} onClick={() => setSoundPreference(false)} className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium ${soundPreference === false ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-200"}`}>Começar sem som</button>
+                <button type="button" aria-pressed={narrationChoice === true} onClick={() => { setNarrationChoice(true); setSoundPreference(true); }} className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium ${narrationChoice === true ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-200"}`}>Sim, ouvir a leitura</button>
+                <button type="button" aria-pressed={narrationChoice === false} onClick={() => { setNarrationChoice(false); setSoundPreference(false); }} className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium ${narrationChoice === false ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-200"}`}>Seguir sem som</button>
               </div>
-              <p className="mt-2 text-sm text-slate-400">Você pode mudar essa escolha durante a leitura.</p>
+              <p className="mt-2 text-sm text-slate-400">Com som, a narração é preparada enquanto você abre as cartas e começa quando a parte estiver revelada. Você pode mudar sua escolha durante a leitura.</p>
             </fieldset>
+            <p className="text-sm leading-relaxed text-slate-400">Esta é uma interpretação digital baseada nos símbolos e métodos do Petit Lenormand, o baralho cigano. Receba a leitura de acordo com sua fé e intenção: ela não é uma verdade absoluta nem substitui uma consulta presencial. Nenhuma leitura, digital ou presencial, determina seu futuro ou suas decisões.</p>
 
             {/* Feedback de Erro */}
             {errorMessage && (

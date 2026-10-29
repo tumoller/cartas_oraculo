@@ -7,9 +7,10 @@ import type { ReadingSessionPayload } from "@/types";
 
 type CardDraw = ReadingSessionPayload["cardsDrawn"][number];
 
-export function ConsultationReadingPane({ title, subtitle, card, note, revealed, audio, overview, overviewTitle = "Leitura da linha", onPrevious, onNext, canPrevious, canNext, onEnlarge, revealAction, activeView, onViewChange, revealing = false, readingLockedMessage }: {
+export function ConsultationReadingPane({ title, subtitle, navigation, card, note, revealed, audio, overview, overviewTitle = "Leitura da linha", onPrevious, onNext, canPrevious, canNext, onEnlarge, revealAction, activeView, onViewChange, revealing = false, readingLockedMessage }: {
   title: string;
   subtitle?: string;
+  navigation?: ReactNode;
   card: CardDraw | null;
   note?: string;
   revealed: boolean;
@@ -48,6 +49,7 @@ export function ConsultationReadingPane({ title, subtitle, card, note, revealed,
       <h2 className="font-serif text-xl text-amber-100 sm:text-2xl">{title}</h2>
       {subtitle && <p className="mt-1 text-sm text-slate-300">{subtitle}</p>}
     </header>
+    {navigation}
     <div role="group" aria-label="Visualização da leitura" className="mt-4 flex gap-1 border-b border-white/15">
       <button type="button" aria-pressed={activeView === "card"} onClick={() => onViewChange("card")} className={`min-h-12 border-b-2 px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 ${activeView === "card" ? "border-amber-300 text-amber-100" : "border-transparent text-slate-300"}`}>Carta selecionada</button>
       <button type="button" aria-pressed={activeView === "overview"} onClick={() => onViewChange("overview")} className={`min-h-12 border-b-2 px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 ${activeView === "overview" ? "border-amber-300 text-amber-100" : "border-transparent text-slate-300"}`}>{overviewTitle}</button>
@@ -61,14 +63,15 @@ export function ConsultationReadingPane({ title, subtitle, card, note, revealed,
           <div className="mb-3 flex items-center gap-2"><span className="rounded-full bg-amber-300/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-200">Posição {card.position}</span><h3 className="font-serif text-lg text-amber-100">{cardName}</h3></div>
           <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(190px,250px)_minmax(0,1fr)]">
             <div className="mx-auto w-full max-w-[250px]">
-              <div className="featured-card relative mx-auto aspect-[24/43] h-[min(300px,72vw)] w-auto rounded-lg sm:h-[310px]">
+              <button type="button" onClick={onEnlarge} disabled={!onEnlarge || revealing} aria-label={`Ampliar carta ${card.position}: ${cardName}`} className="featured-card relative mx-auto block aspect-[24/43] h-[min(300px,72vw)] w-auto rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 disabled:cursor-default sm:h-[310px]">
                 <div key={card.position} className={`featured-card-turn ${revealing ? "is-revealing" : ""}`}>
                   <span className="featured-card-back" aria-hidden="true">✦</span>
                   <div className="featured-card-front">
                     {card.imageUrl ? <Image key={card.position} src={card.imageUrl} alt={cardName} fill sizes="180px" className="object-contain" /> : <div className="flex h-full items-center justify-center p-4 text-center font-serif text-amber-100">{cardName}</div>}
                   </div>
                 </div>
-              </div>
+              </button>
+              {onEnlarge && <p className="mt-2 text-center text-xs text-slate-300">Toque na carta para ampliar</p>}
               <div className="mt-3 flex items-center justify-between gap-2">
                 <button type="button" onClick={onPrevious} disabled={!canPrevious} aria-label="Carta anterior" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/20 bg-slate-800 text-slate-100 disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"><ArrowLeft size={20} /></button>
                 <span className="text-xs text-slate-300">Carta {card.position}</span>
@@ -77,7 +80,6 @@ export function ConsultationReadingPane({ title, subtitle, card, note, revealed,
             </div>
             <div className="min-w-0 text-left">
               {note ? <p className="reading-copy whitespace-pre-line text-lg leading-relaxed text-slate-100">{note}</p> : readingLockedMessage && <p role="status" className="reading-copy text-slate-300">{revealing ? "Revelando sua carta…" : readingLockedMessage}</p>}
-              {onEnlarge && <button type="button" onClick={onEnlarge} className="mt-4 min-h-12 rounded-xl border border-amber-400/40 px-4 text-sm text-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">Ampliar carta</button>}
             </div>
           </div>
         </article>

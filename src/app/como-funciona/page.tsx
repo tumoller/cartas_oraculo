@@ -20,10 +20,12 @@ export default function ComoFunciona() {
         <section>
           <h2 className="text-xl font-semibold text-slate-100">Sua experiência</h2>
           <p>Escolha uma leitura de três, cinco, nove ou 36 cartas. Cada uma reúne interpretações para o tema escolhido e um panorama geral para sua reflexão. Na consulta de cinco cartas, você pode conhecer as primeiras cartas antes de abrir o restante.</p>
+          <p className="mt-2">Nos jogos de nove e 36 cartas, o básico reúne as linhas e a síntese geral. O completo acrescenta colunas, centro e diagonais no quadro de nove; na mesa de 36, acrescenta a vizinhança do tema e os quatro cantos. Nas tiragens de três e cinco, centro e combinações fazem parte da própria leitura da linha.</p>
+          <p className="mt-2">Você pode ouvir a leitura ou acompanhar somente o texto. Com sua escolha de ouvir, a narração dos capítulos é preparada enquanto as cartas são abertas. O áudio lê o mesmo texto da consulta; não há uma narração separada para cada carta. Toque nas cartas para ver a arte ampliada.</p>
           <p className="mt-2">Esta é uma demonstração: nenhum pagamento é solicitado ou feito. O botão apenas abre o restante da leitura.</p>
         </section>
 
-        <p className="text-sm text-slate-400">As cartas convidam à reflexão e apontam possibilidades, sem garantir acontecimentos. Suas escolhas e as circunstâncias podem transformar os caminhos.</p>
+        <p className="text-sm text-slate-400">Esta é uma interpretação digital baseada no Petit Lenormand, também conhecido como baralho cigano, com texto gerado por inteligência artificial a partir das cartas sorteadas. Receba a leitura de acordo com sua fé e intenção. Ela não é uma verdade absoluta nem substitui uma consulta presencial. Nenhuma leitura, digital ou presencial, determina o futuro ou suas decisões. As combinações podem apontar situações favoráveis, desafios ou perdas, sem garantia de acontecimentos.</p>
       </div>
     </main>
   );

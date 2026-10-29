@@ -26,11 +26,6 @@ export function ConsultationTable({ cards, revealed, current, highlighted, onSel
     previous.current = revealed;
     if (revealed !== old + 1) return;
     const art = map.current?.querySelector<HTMLElement>(`[data-position="${revealed}"] .consultation-card-art`);
-    const slot = art?.closest<HTMLElement>(".consultation-card-slot");
-    const bounds = slot?.getBoundingClientRect();
-    if (bounds && window.matchMedia("(max-width: 1023px)").matches && (bounds.bottom > window.innerHeight - 16 || bounds.top < 140)) {
-      slot?.scrollIntoView({ block: "center", behavior: "instant" });
-    }
     const source = deck.current?.querySelector(".consultation-deck-back:last-child")?.getBoundingClientRect() || deck.current?.getBoundingClientRect();
     const target = art?.getBoundingClientRect();
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -63,7 +58,7 @@ export function ConsultationTable({ cards, revealed, current, highlighted, onSel
           const reference = visible && referencePosition === card.position;
           const neighbor = visible && referencePosition !== undefined && highlighted.includes(card.position) && !reference;
           const dimmed = visible && highlighted.length > 0 && !highlighted.includes(card.position);
-          return <button key={card.position} data-position={card.position} type="button" disabled={disabled || !visible} onClick={() => onSelect(card.position)} aria-pressed={visible && focused} aria-label={visible ? `Selecionar posição ${card.position}: ${card.name?.replace(/^\d+\.\s*/, "") || "Carta"}${reference ? ", carta do tema" : ""}` : `Posição ${card.position} ainda vazia`} className={`consultation-card-slot ${visible ? "is-filled" : "is-empty"} ${card.position === revealed ? "is-latest" : ""} ${focused && visible ? "is-selected" : ""} ${reference ? "is-reference" : neighbor ? "is-neighbor" : ""} ${next ? "is-next" : ""} ${dimmed ? "is-dimmed" : ""} ${mobilePositions && !mobilePositions.includes(card.position) ? "outside-mobile-group" : ""}`}>
+          return <button key={card.position} data-position={card.position} type="button" disabled={disabled || !visible} onClick={() => onSelect(card.position)} aria-pressed={visible && focused} aria-label={visible ? `Ampliar posição ${card.position}: ${card.name?.replace(/^\d+\.\s*/, "") || "Carta"}${reference ? ", carta do tema" : ""}` : `Posição ${card.position} ainda vazia`} className={`consultation-card-slot ${visible ? "is-filled" : "is-empty"} ${card.position === revealed ? "is-latest" : ""} ${focused && visible ? "is-selected" : ""} ${reference ? "is-reference" : neighbor ? "is-neighbor" : ""} ${next ? "is-next" : ""} ${dimmed ? "is-dimmed" : ""} ${mobilePositions && !mobilePositions.includes(card.position) ? "outside-mobile-group" : ""}`}>
             {visible && <span className="consultation-card-art">
               <span className="consultation-flight-back" aria-hidden="true">✦</span>
               <span className="consultation-flight-front">
@@ -74,7 +69,7 @@ export function ConsultationTable({ cards, revealed, current, highlighted, onSel
           </button>;
         })}
       </div>
-      <p className="mt-3 text-center text-xs leading-relaxed text-slate-200">{revealed} de {cards.length} cartas abertas{revealed ? " · Toque em uma carta para vê-la" : ""}</p>
+      <p className="mt-3 text-center text-xs leading-relaxed text-slate-200">{revealed} de {cards.length} cartas abertas{revealed ? " · Toque em uma carta para ampliar" : ""}</p>
     </div>
   </div>;
 }

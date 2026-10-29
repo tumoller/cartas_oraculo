@@ -114,6 +114,17 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
   }, []);
 
   useEffect(() => {
+    const handleStartEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId: string; requestMic?: boolean }>).detail;
+      if (detail?.sessionId === session.id) {
+        void start(detail.requestMic ?? false);
+      }
+    };
+    window.addEventListener("oracle-start-live-conversation", handleStartEvent);
+    return () => window.removeEventListener("oracle-start-live-conversation", handleStartEvent);
+  }, [session.id]);
+
+  useEffect(() => {
     setAvailable(false);
     if (session.isPaid) {
       fetch(`/api/reading/${encodeURIComponent(session.id)}/live`, { cache: "no-store" })
@@ -191,14 +202,28 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
     });
   };
 
-  const start = async () => {
+  const start = async (requestMic = false) => {
     if (state !== "idle") return;
     setLiveVoiceActive(true);
     setSoundPreference(true);
     setState("connecting");
-    setStatus("Preparando conversa...");
+    setStatus(requestMic ? "Preparando conversa... Permita o microfone se solicitado pelo navegador." : "Preparando conversa...");
     expired.current = false;
     window.dispatchEvent(new CustomEvent("oracle-audio-start", { detail: "live" }));
+    let micPromise: Promise<MediaStream> | null = null;
+    if (requestMic) {
+      if (!window.isSecureContext) {
+        setStatus("Para usar o microfone, abra a consulta por um endereço seguro. Conectando para perguntas em texto...");
+      } else if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus("Microfone indisponível neste dispositivo. Conectando para perguntas em texto...");
+      } else {
+        try {
+          micPromise = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        } catch {
+          // Handled below
+        }
+      }
+    }
     try {
       playback.current = new AudioContext();
       output.current = playback.current.createGain();
@@ -208,10 +233,16 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
       output.current.connect(outputMeter.current);
       outputMeter.current.connect(playback.current.destination);
       await playback.current.resume();
-      if (expired.current) return;
+      if (expired.current) {
+        micPromise?.then((s) => s.getTracks().forEach((t) => t.stop())).catch(() => {});
+        return;
+      }
       const response = await fetch(`/api/reading/${encodeURIComponent(session.id)}/live`, { method: "POST", cache: "no-store", signal: AbortSignal.timeout(35000) });
       const data = await response.json() as { token?: string; model?: string; expiresAt?: string; error?: string };
-      if (expired.current) return;
+      if (expired.current) {
+        micPromise?.then((s) => s.getTracks().forEach((t) => t.stop())).catch(() => {});
+        return;
+      }
       if (!response.ok || !data.token || !data.model || !data.expiresAt) throw new Error(data.error || "Conversa indisponível.");
       const expires = Date.parse(data.expiresAt);
       if (expired.current || expires <= Date.now()) throw new Error("Não foi possível conectar dentro do tempo disponível. Sua leitura continua salva.");
@@ -232,7 +263,59 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
         try { message = JSON.parse(event.data instanceof ArrayBuffer ? new TextDecoder().decode(event.data) : event.data); } catch { return; }
         if (message.setupComplete) {
           setState("ready");
-          setStatus("Conectado. Escreva uma pergunta ou ative o microfone.");
+          if (micPromise) {
+            micPromise
+              .then(async (stream) => {
+                if (expired.current || !soundAllowed.current || socket.current?.readyState !== WebSocket.OPEN) {
+                  stream.getTracks().forEach((track) => track.stop());
+                  return;
+                }
+                try {
+                  const context = new AudioContext({ sampleRate: 16000 });
+                  await context.resume();
+                  if (expired.current || !soundAllowed.current || socket.current?.readyState !== WebSocket.OPEN) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    void context.close();
+                    return;
+                  }
+                  const source = context.createMediaStreamSource(stream);
+                  const processor = context.createScriptProcessor(4096, 1, 1);
+                  const sink = context.createGain();
+                  sink.gain.value = 0;
+                  processor.onaudioprocess = (ev) => {
+                    if (socket.current?.readyState !== WebSocket.OPEN) return;
+                    const input = ev.inputBuffer.getChannelData(0);
+                    const ratio = ev.inputBuffer.sampleRate / 16000;
+                    const pcm = new Int16Array(Math.floor(input.length / ratio));
+                    for (let i = 0; i < pcm.length; i++) {
+                      const sample = Math.max(-1, Math.min(1, input[Math.floor(i * ratio)]));
+                      pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+                    }
+                    const bytes = new Uint8Array(pcm.buffer);
+                    let binary = "";
+                    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+                    socket.current.send(JSON.stringify({ realtimeInput: { audio: { data: btoa(binary), mimeType: "audio/pcm;rate=16000" } } }));
+                  };
+                  source.connect(processor);
+                  processor.connect(sink);
+                  sink.connect(context.destination);
+                  mic.current = { stream, context, source, processor, sink };
+                  setMicrophoneOn(true);
+                  window.dispatchEvent(new CustomEvent("oracle-microphone", { detail: { active: true } }));
+                  setStatus("Conectado. Microfone ligado. Você já pode falar sobre sua leitura.");
+                } catch {
+                  stream.getTracks().forEach((track) => track.stop());
+                  setMicrophoneOn(false);
+                  setStatus("Conectado. Não foi possível ativar o microfone neste momento. Você pode escrever sua pergunta ou tentar ligar o microfone novamente.");
+                }
+              })
+              .catch(() => {
+                setMicrophoneOn(false);
+                setStatus("Conectado. Microfone não autorizado ou indisponível. Você pode escrever sua pergunta ou tentar ligar o microfone novamente.");
+              });
+          } else {
+            setStatus("Conectado. Escreva uma pergunta ou ative o microfone.");
+          }
         }
         const content = message.serverContent;
         if (!content) return;
@@ -247,6 +330,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
       ws.onerror = () => { if (!expired.current) end("A conversa perdeu a conexão. Sua leitura continua disponível.", true); };
       ws.onclose = () => { if (!expired.current) end("A conversa foi encerrada. Sua leitura continua disponível.", true); };
     } catch (error) {
+      micPromise?.then((s) => s.getTracks().forEach((t) => t.stop())).catch(() => {});
       end(error instanceof Error && !/fetch|timeout|signal|network|token|Gemini|API/i.test(error.message) ? error.message : "Não foi possível iniciar a conversa. Tente novamente mais tarde.");
     }
   };
@@ -341,7 +425,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
       <p className="mt-1 text-sm text-slate-300">Você tem 3 minutos para tirar dúvidas e aprofundar sua leitura. Esta conversa acompanha as cartas que já saíram na sua mesa.</p>
       <p role="status" aria-live="polite" className="mt-3 text-sm text-amber-200">{status}</p>
       {state === "idle" ? (
-        <button type="button" onClick={start} className="mt-4 min-h-12 rounded-xl bg-cyan-700 px-5 py-2.5 font-semibold text-white hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400">Começar conversa com som</button>
+        <button type="button" onClick={() => void start()} className="mt-4 min-h-12 rounded-xl bg-cyan-700 px-5 py-2.5 font-semibold text-white hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400">Começar conversa com som</button>
       ) : (
         <>
           {state !== "ended" && <p className="mt-3 text-sm font-semibold text-cyan-200">Tempo restante: {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</p>}

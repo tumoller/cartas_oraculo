@@ -23,7 +23,7 @@ const reading = {
   generalSynthesis: "Compare a linha com os fatos.",
 };
 
-test("áudio só oferece linhas físicas e resumo permitido pela tiragem", () => {
+test("áudio oferece capítulos da leitura e síntese sem duplicar tiragem única", () => {
   assert.deepEqual(audio.audioChapters(reading), [{ chapter: "synthesis", title: "Leitura das cinco cartas" }]);
   assert.deepEqual(audio.audioChapters({ ...reading, spread: "line5" }).map((item) => item.chapter), ["synthesis"]);
   assert.equal(audio.chapterText(reading, "card3"), `${reading.card3Teaser}\n\n${reading.card3Full}`);
@@ -33,11 +33,11 @@ test("áudio só oferece linhas físicas e resumo permitido pela tiragem", () =>
   assert.equal(audio.chapterText(three, "section1"), "Leitura da linha");
   assert.throws(() => audio.chapterText(three, "section2"), /Texto ausente/);
   const nine = { ...three, spread: "box9", sections: Array.from({ length: 5 }, (_, i) => ({ id: `section${i + 1}`, title: `Capítulo ${i + 1}`, positions: [1, 2, 3], text: `Texto ${i + 1}` })) };
-  assert.deepEqual(audio.audioChapters(nine).map((item) => item.chapter), ["section1", "section2", "section3", "synthesis"]);
-  assert.deepEqual(audio.audioChapters({ ...nine, spread: undefined }).map((item) => item.chapter), ["section1", "section2", "section3", "synthesis"]);
+  assert.deepEqual(audio.audioChapters(nine).map((item) => item.chapter), ["section1", "section2", "section3", "section4", "section5", "synthesis"]);
+  assert.deepEqual(audio.audioChapters({ ...nine, spread: undefined }).map((item) => item.chapter), ["section1", "section2", "section3", "section4", "section5", "synthesis"]);
   const grand = { ...nine, spread: "grand36", sections: Array.from({ length: 6 }, (_, i) => ({ id: `section${i + 1}`, title: `Capítulo ${i + 1}`, positions: [1, 2, 3, 4, 5, 6, 7, 8, 9], text: `Texto ${i + 1}` })) };
-  assert.deepEqual(audio.audioChapters(grand).map((item) => item.chapter), ["section1", "section2", "section3", "section4", "synthesis"]);
-  assert.deepEqual(audio.audioChapters({ ...grand, spread: undefined }).map((item) => item.chapter), ["section1", "section2", "section3", "section4", "synthesis"]);
+  assert.deepEqual(audio.audioChapters(grand).map((item) => item.chapter), ["section1", "section2", "section3", "section4", "section5", "section6", "synthesis"]);
+  assert.deepEqual(audio.audioChapters({ ...grand, spread: undefined }).map((item) => item.chapter), ["section1", "section2", "section3", "section4", "section5", "section6", "synthesis"]);
 });
 
 test("fila durável e WAV reutilizado sem segunda chamada paga", async () => {
@@ -126,4 +126,16 @@ test("erro transitório respeita espera e para após três tentativas", async ()
     if (priorKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = priorKey;
     await fs.rm(folder, { recursive: true, force: true });
   }
+});
+
+test("trava local impede segundo worker e libera porta ao fechar", async () => {
+  const first = await worker.acquireWorkerLock("test-audio", 0);
+  const port = first.address().port;
+  try {
+    await assert.rejects(worker.acquireWorkerLock("test-audio", port), { code: "EADDRINUSE" });
+  } finally {
+    await new Promise((resolve) => first.close(resolve));
+  }
+  const second = await worker.acquireWorkerLock("test-audio", port);
+  await new Promise((resolve) => second.close(resolve));
 });

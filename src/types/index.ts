@@ -45,6 +45,7 @@ export interface PublicAiReading {
 
 export interface ReadingSessionPayload {
   spread?: "line3" | "line5" | "box9" | "grand36";
+  readingDepth?: "basic" | "complete";
   sections?: ReadingSection[];
   cardNotes?: { position: number; text: string }[];
   question?: string;

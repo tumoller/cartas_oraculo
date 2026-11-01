@@ -15,7 +15,7 @@ export function CardRevealDialog({ card, note, onClose }: { card: Card | null; n
     else if (!card && dialog.current?.open) dialog.current.close();
   }, [card]);
 
-  return <dialog ref={dialog} onClose={onClose} aria-labelledby="revealed-card-title" className="max-h-[95dvh] max-w-[95vw] overflow-y-auto rounded-2xl border border-amber-400/40 bg-slate-950 p-4 text-slate-100 shadow-2xl backdrop:bg-slate-950/90 sm:p-5">
+  return <dialog ref={dialog} onClose={onClose} aria-labelledby="revealed-card-title" className="fixed inset-0 m-auto max-h-[95dvh] max-w-[95vw] overflow-y-auto rounded-2xl border border-amber-400/40 bg-slate-950 p-4 text-slate-100 shadow-2xl backdrop:bg-slate-950/90 sm:p-5">
     <div className="mb-3 flex items-center justify-between gap-3">
       <h2 id="revealed-card-title" className="font-serif text-lg">{card ? `Carta ${card.position} · ${card.name?.replace(/^\d+\.\s*/, "") || "Carta"}` : "Carta"}</h2>
       <button type="button" onClick={() => dialog.current?.close()} aria-label="Fechar carta" className="rounded-full p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"><X size={20} /></button>

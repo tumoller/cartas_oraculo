@@ -157,6 +157,8 @@ body[data-oracle-persona="umbanda"] {
 }
 
 .consultation-reading { background: #18202e; border: 1px solid #ffffff20; }
+:root[data-oracle-persona="cigano"] .consultation-reading, body[data-oracle-persona="cigano"] .consultation-reading { background: #281a20; }
+:root[data-oracle-persona="umbanda"] .consultation-reading, body[data-oracle-persona="umbanda"] .consultation-reading { background: #291b20; }
 .consultation-preparing-portrait { animation: consultation-enter .7s ease-out both; }
 @keyframes consultation-enter { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .consultation-card-grid { display: grid; gap: 7px; margin: auto; }
@@ -196,8 +198,12 @@ body[data-oracle-persona="umbanda"] {
   .consultation-map[data-mobile-focus="true"] .outside-mobile-group { display: none; }
 }
 @media (min-width: 1024px) {
-  .consultation-columns { grid-template-columns: minmax(340px, .36fr) minmax(0, .64fr); }
-  .scene-tabletop-layout .scene-portrait { transform: scale(1.45); transform-origin: 50% 0%; }
+  .consultation-columns { grid-template-columns: minmax(0, .43fr) minmax(0, .57fr); }
+  .consultation-reading { grid-column: 1; grid-row: 1; }
+  .consultation-table-panel { grid-column: 2; grid-row: 1; position: sticky; top: 1rem; }
+  .scene-tabletop-layout .scene-stage { display: none; }
+  .consultation-map[data-card-count="9"] { max-width: 450px; }
+  .narration-presentation { inset: 1rem auto auto max(1rem, calc((100vw - 1600px) / 2 + 1rem)); margin: 0; width: min(calc((100vw - 3rem) * .43), 680px); max-height: calc(100dvh - 2rem); }
 }
 .featured-card { perspective: 900px; }
 .featured-card-turn { position: absolute; inset: 0; transform-style: preserve-3d; }

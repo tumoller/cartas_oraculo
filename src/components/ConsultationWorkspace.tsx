@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { ReadingSessionPayload } from "@/types";
 import { SPREADS } from "@/lib/spread-config";
 import { ConsultationScene } from "./ConsultationScene";
+import { OraclePortrait } from "./OraclePortrait";
 
 export function ConsultationWorkspace({ session, table, children }: {
   session: ReadingSessionPayload;
@@ -17,8 +18,8 @@ export function ConsultationWorkspace({ session, table, children }: {
       <p className="mt-1 text-sm text-slate-300">{session.userName} · {session.theme}</p>
     </header>
     <div className="consultation-columns grid min-w-0 grid-cols-1 items-start gap-5 xl:gap-8">
-      <aside className="min-w-0"><ConsultationScene session={session} variant="tabletop">{table}</ConsultationScene></aside>
-      <section aria-label="Leitura e áudio" className="consultation-reading min-w-0 rounded-3xl p-5 shadow-xl sm:p-7 xl:p-8">{children}</section>
+      <aside className="consultation-table-panel min-w-0"><ConsultationScene session={session} variant="tabletop">{table}</ConsultationScene></aside>
+      <section aria-label="Leitura e áudio" className="consultation-reading min-w-0 rounded-3xl p-5 shadow-xl sm:p-7 xl:p-8"><div className="consultation-reading-portrait relative mb-5 hidden h-60 overflow-hidden rounded-2xl lg:block"><OraclePortrait persona={session.persona} preparing={false} playing={false} /></div>{children}</section>
     </div>
   </div>;
 }

@@ -16,14 +16,20 @@ export function LiveInviteDialog({
   onDismiss: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const acceptButton = useRef<HTMLButtonElement>(null);
   const art = sceneAssets(persona);
 
   useEffect(() => {
-    if (isOpen && !dialog.current?.open) {
-      dialog.current?.showModal();
-    } else if (!isOpen && dialog.current?.open) {
-      dialog.current?.close();
+    const el = dialog.current;
+    if (isOpen && el && !el.open) {
+      el.showModal();
+      acceptButton.current?.focus();
+    } else if (!isOpen && el?.open) {
+      el.close();
     }
+    return () => {
+      if (el?.open) el.close();
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -33,7 +39,7 @@ export function LiveInviteDialog({
       ref={dialog}
       onClose={onDismiss}
       aria-labelledby="live-invite-title"
-      className="max-h-[90dvh] w-[min(90vw,420px)] rounded-2xl border border-cyan-400/50 bg-slate-950 p-5 text-slate-100 shadow-2xl backdrop:bg-slate-950/80"
+      className="fixed inset-0 m-auto max-h-[90dvh] w-[min(calc(100vw-2rem),420px)] overflow-y-auto rounded-2xl border border-cyan-400/50 bg-slate-950 p-5 text-slate-100 shadow-2xl backdrop:bg-slate-950/80"
     >
       <div className="flex flex-col items-center text-center">
         <div className="relative mb-4 size-20 overflow-hidden rounded-full border-2 border-cyan-400/60 shadow-lg">
@@ -53,6 +59,7 @@ export function LiveInviteDialog({
         </p>
         <div className="mt-5 flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
           <button
+            ref={acceptButton}
             type="button"
             onClick={onAccept}
             className="min-h-12 flex-1 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-cyan-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"

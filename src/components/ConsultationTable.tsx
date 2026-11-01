@@ -62,7 +62,7 @@ export function ConsultationTable({ cards, revealed, current, highlighted, onSel
             {visible && <span className="consultation-card-art">
               <span className="consultation-flight-back" aria-hidden="true">✦</span>
               <span className="consultation-flight-front">
-              {card.imageUrl ? <Image src={card.imageUrl} alt="" fill sizes={mobilePositions ? "(max-width: 1023px) 30vw, 60px" : columns === 9 ? "(max-width: 1023px) 10vw, 60px" : "100px"} priority={card.position === revealed} quality={70} className="object-contain" /> : <span className="flex h-full items-center justify-center p-1 text-center text-xs text-amber-100">{card.name?.replace(/^\d+\.\s*/, "") || "Carta"}</span>}
+              {card.imageUrl ? <Image src={card.imageUrl} alt="" fill sizes={columns === 9 ? (mobilePositions ? "(max-width: 1023px) 30vw, (max-width: 1600px) 6vw, 100px" : "(max-width: 1023px) 10vw, (max-width: 1600px) 6vw, 100px") : columns === 3 && cards.length === 9 ? "(max-width: 1023px) 30vw, (max-width: 1600px) 16vw, 150px" : "100px"} priority={card.position === revealed} quality={70} className="object-contain" /> : <span className="flex h-full items-center justify-center p-1 text-center text-xs text-amber-100">{card.name?.replace(/^\d+\.\s*/, "") || "Carta"}</span>}
               </span>
             </span>}
             <span className="consultation-position" aria-hidden="true">{card.position}</span>

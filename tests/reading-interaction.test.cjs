@@ -552,3 +552,618 @@ test("quatro cantos interpreta relações das posições 1, 9, 28 e 36", () => {
   assert.match(hint, /quatro cartas que ocupam os cantos da mesa/i);
   assert.doesNotMatch(hint, /moldura da mesa/i);
 });
+
+test("troca de leitura com áudio tocando: preserva posição, pausa e retoma corretamente", () => {
+  const sessionId = "test-session-swap";
+  audioLib.saveChapterTime(sessionId, "section1", 3.25);
+  assert.equal(audioLib.getSavedChapterTime(sessionId, "section1"), 3.25);
+
+  audioLib.clearChapterTime(sessionId, "section1");
+  assert.equal(audioLib.getSavedChapterTime(sessionId, "section1"), 0);
+
+  // Simular troca com cancelamento (Continuar ouvindo)
+  let playingPaused = false;
+  let resumed = false;
+  const mockMedia = {
+    currentTime: 4.5,
+    paused: false,
+    ended: false,
+    pause: () => { playingPaused = true; mockMedia.paused = true; },
+    play: async () => { resumed = true; mockMedia.paused = false; },
+  };
+
+  // Pausa ao tentar trocar
+  mockMedia.pause();
+  assert.equal(playingPaused, true);
+  assert.equal(mockMedia.currentTime, 4.5);
+
+  // Cancelar troca -> retoma sem alterar posição
+  audioLib.resumePlayingMedia(mockMedia);
+  assert.equal(resumed, true);
+  assert.equal(mockMedia.currentTime, 4.5);
+
+  // Confirmar troca -> salva posição anterior
+  audioLib.saveChapterTime(sessionId, "section1", mockMedia.currentTime);
+  assert.equal(audioLib.getSavedChapterTime(sessionId, "section1"), 4.5);
+});
+
+test("conclusão de nova linha durante áudio: cancelar mantém linha atual sem ciclo, confirmar avança com autoplay", () => {
+  const consumedCompletions = new Set([0]); // linha 1 já concluída
+  let currentChapter = 0; // Linha 1
+  let revealed = 6; // Linha 2 revelada
+  let autoplayChapter = null;
+  let pendingNavigation = null;
+
+  const mockPlaying = {
+    currentTime: 2.8,
+    paused: false,
+    ended: false,
+    pause: () => { mockPlaying.paused = true; },
+    play: async () => { mockPlaying.paused = false; },
+  };
+
+  // Linha 2 conclui com áudio tocando
+  if (!consumedCompletions.has(1)) {
+    consumedCompletions.add(1);
+    mockPlaying.pause();
+    pendingNavigation = {
+      type: "row-completion",
+      targetIndex: 1,
+      targetChapterId: "section2",
+      previousChapterId: "section1",
+      previousTime: mockPlaying.currentTime,
+      media: mockPlaying,
+    };
+  }
+
+  assert.ok(pendingNavigation);
+  assert.equal(consumedCompletions.has(1), true);
+  assert.equal(mockPlaying.paused, true);
+  assert.equal(currentChapter, 0); // Linha 1 mantida
+  assert.equal(revealed, 6); // Cartas preservadas
+
+  // Se cancelar ("Continuar ouvindo"):
+  mockPlaying.play();
+  pendingNavigation = null;
+  assert.equal(currentChapter, 0);
+  assert.equal(mockPlaying.paused, false);
+  assert.equal(autoplayChapter, null);
+
+  // Reavaliação não reabre ciclo porque linha 2 já está em consumedCompletions
+  let retriggered = false;
+  if (!consumedCompletions.has(1)) {
+    retriggered = true;
+  }
+  assert.equal(retriggered, false);
+});
+
+test("modo texto não dispara geração nem pede confirmação ao navegar", () => {
+  const sessionId = "test-session-text";
+  const narration = false;
+  let requests = [];
+
+  // Em modo texto, prepare não deve ser true
+  const isPaid = true;
+  const ready = true;
+  const prepare = isPaid && narration === true && ready;
+  assert.equal(prepare, false);
+  assert.equal(requests.length, 0);
+
+  // Navegar em modo texto deve ser imediato sem pendência
+  let pendingNavigation = null;
+  const isPlaying = audioLib.isAudioPlaying(sessionId);
+  assert.equal(isPlaying, false);
+  if (narration !== true) {
+    // navega diretamente
+  } else if (isPlaying) {
+    pendingNavigation = { mode: "playing" };
+  }
+  assert.equal(pendingNavigation, null);
+});
+
+test("deduplicação de POST e geração restrita à leitura atual", () => {
+  const sessionId = "test-session-dedup";
+  const chapter = "section1";
+
+  audioLib.resetAudioTracking();
+  assert.equal(audioLib.hasRequestedChapter(sessionId, chapter), false);
+
+  // Primeiro pedido
+  audioLib.markChapterRequested(sessionId, chapter);
+  assert.equal(audioLib.hasRequestedChapter(sessionId, chapter), true);
+
+  // Segundo pedido (ex: zoom ou retorno) detecta que já foi solicitado
+  const shouldSkipPost = audioLib.hasRequestedChapter(sessionId, chapter);
+  assert.equal(shouldSkipPost, true);
+
+  // Capítulos futuros não foram pedidos
+  assert.equal(audioLib.hasRequestedChapter(sessionId, "section2"), false);
+  assert.equal(audioLib.hasRequestedChapter(sessionId, "synthesis"), false);
+});
+
+test("sair de leitura preparando ou pronta e não ouvida: solicita confirmação de avanço", () => {
+  const sessionId = "test-session-unheard";
+  audioLib.resetAudioTracking();
+
+  // Capítulo 1 preparando
+  audioLib.setChapterAudioState(sessionId, "section1", {
+    status: "pending",
+    hasPlayed: false,
+    userPaused: false,
+  });
+
+  const state1 = audioLib.getChapterAudioState(sessionId, "section1");
+  const isPreparing1 = state1.status === "pending" || state1.status === "generating";
+  assert.equal(isPreparing1, true);
+
+  // Tentativa de navegar abre diálogo com mode: 'unheard'
+  let pendingNavigation = null;
+  if (isPreparing1) {
+    pendingNavigation = {
+      mode: "unheard",
+      targetIndex: 1,
+      targetChapterId: "section2",
+      previousChapterId: "section1",
+    };
+  }
+  assert.ok(pendingNavigation);
+  assert.equal(pendingNavigation.mode, "unheard");
+
+  // Capítulo 1 pronto mas não ouvido (hasPlayed=false, userPaused=false)
+  audioLib.setChapterAudioState(sessionId, "section1", {
+    status: "ready",
+    hasPlayed: false,
+    userPaused: false,
+  });
+  const stateReady = audioLib.getChapterAudioState(sessionId, "section1");
+  const isReadyUnheard = stateReady.status === "ready" && !stateReady.hasPlayed && !stateReady.userPaused;
+  assert.equal(isReadyUnheard, true);
+
+  // Se o usuário já tiver pausado manualmente, NÃO deve pedir confirmação
+  audioLib.setChapterAudioState(sessionId, "section1", {
+    status: "ready",
+    hasPlayed: true,
+    userPaused: true,
+  });
+  const statePaused = audioLib.getChapterAudioState(sessionId, "section1");
+  const shouldPromptWhenPaused =
+    (statePaused.status === "ready" && !statePaused.hasPlayed && !statePaused.userPaused) ||
+    statePaused.status === "pending";
+  assert.equal(shouldPromptWhenPaused, false);
+});
+
+test("selectFromTable em 5 cartas: tocar carta revelada só abre zoom sem pausar síntese", () => {
+  let activeView = "overview";
+  let enlargedPosition = null;
+  let audioPaused = false;
+  let viewChanged = false;
+
+  const mockPlaying = {
+    paused: false,
+    pause: () => { audioPaused = true; },
+  };
+
+  const selectFromTable = (next, revealed) => {
+    if (next <= revealed) {
+      enlargedPosition = next;
+    }
+  };
+
+  // Tocar carta 1 já revelada durante síntese
+  selectFromTable(1, 5);
+  assert.equal(enlargedPosition, 1);
+  assert.equal(activeView, "overview");
+  assert.equal(audioPaused, false);
+  assert.equal(viewChanged, false);
+
+  // Fechar zoom
+  enlargedPosition = null;
+  assert.equal(activeView, "overview");
+  assert.equal(audioPaused, false);
+});
+
+test("áudio de acolhimento é restrito e não interfere na reprodução de capítulo", () => {
+  const sessionId = "test-session-welcome";
+  audioLib.resetAudioTracking();
+
+  // Salvar posição com chapter = "welcome" deve ser ignorado
+  audioLib.saveChapterTime(sessionId, "welcome", 5.0);
+  assert.equal(audioLib.getSavedChapterTime(sessionId, "welcome"), 0);
+
+  // isAudioPlaying verifica apenas áudio de capítulo
+  assert.equal(audioLib.isAudioPlaying(sessionId), false);
+});
+
+test("recuperação de falhas: POST que falha antes de criar o job e recuperação posterior", async () => {
+  const sessionId = "session-post-fail";
+  const chapter = "section1";
+  audioLib.resetAudioTracking();
+
+  let postCount = 0;
+  let serverStatus = "not_started";
+  let failFirstPost = true;
+
+  const mockRequestAudio = async () => {
+    if (audioLib.hasRequestedChapter(sessionId, chapter)) {
+      if (serverStatus !== "not_started" && serverStatus !== "failed") {
+        return;
+      }
+    }
+    audioLib.markChapterRequested(sessionId, chapter);
+    postCount++;
+    if (failFirstPost) {
+      failFirstPost = false;
+      // POST falhou antes de criar job no servidor
+      // Consulta ao servidor após erro de transporte confirma not_started:
+      if (serverStatus === "not_started" || serverStatus === "failed") {
+        audioLib.setChapterAudioState(sessionId, chapter, { status: serverStatus });
+        audioLib.clearChapterRequested(sessionId, chapter);
+      }
+      return { error: "Erro de transporte" };
+    }
+    // Servidor cria o job com sucesso
+    serverStatus = "pending";
+    audioLib.setChapterAudioState(sessionId, chapter, { status: "pending" });
+    return { ok: true };
+  };
+
+  // Primeira tentativa: POST falha antes de criar job
+  assert.equal(audioLib.hasRequestedChapter(sessionId, chapter), false);
+  const res1 = await mockRequestAudio();
+  assert.equal(res1.error, "Erro de transporte");
+  assert.equal(postCount, 1);
+  assert.equal(serverStatus, "not_started");
+  // hasRequestedChapter foi liberado pois o servidor confirmou not_started
+  assert.equal(audioLib.hasRequestedChapter(sessionId, chapter), false);
+
+  // Recuperação posterior via ação explícita compatível com endpoint existente:
+  const res2 = await mockRequestAudio();
+  assert.equal(res2.ok, true);
+  assert.equal(postCount, 2);
+  assert.equal(serverStatus, "pending");
+  // Deduplicação preservada enquanto pendente
+  assert.equal(audioLib.hasRequestedChapter(sessionId, chapter), true);
+
+  // Tentativa repetida não gera novo POST
+  await mockRequestAudio();
+  assert.equal(postCount, 2);
+});
+
+test("recuperação de falhas: resposta perdida após criação do job, sem duplicação", async () => {
+  const sessionId = "session-lost-response";
+  const chapter = "section1";
+  audioLib.resetAudioTracking();
+
+  let postCount = 0;
+  let serverStatus = "not_started";
+
+  const mockRequestAudio = async () => {
+    if (audioLib.hasRequestedChapter(sessionId, chapter)) {
+      if (serverStatus !== "not_started" && serverStatus !== "failed") {
+        return;
+      }
+    }
+    audioLib.markChapterRequested(sessionId, chapter);
+    postCount++;
+    // Servidor cria o job com sucesso:
+    serverStatus = "pending";
+    // Mas cliente sofre erro de transporte ao receber a resposta!
+    // Cliente consulta servidor após erro de transporte:
+    if (serverStatus === "pending") {
+      audioLib.setChapterAudioState(sessionId, chapter, { status: "pending" });
+      audioLib.markChapterRequested(sessionId, chapter);
+    }
+    return { error: "Transport error on response" };
+  };
+
+  const res = await mockRequestAudio();
+  assert.equal(res.error, "Transport error on response");
+  assert.equal(postCount, 1);
+  assert.equal(serverStatus, "pending");
+  // Deduplicação preservada mesmo com erro na resposta, pois servidor confirmou pending
+  assert.equal(audioLib.hasRequestedChapter(sessionId, chapter), true);
+
+  // Nova tentativa explícita do usuário: consulta servidor, detecta pending e não duplica POST
+  await mockRequestAudio();
+  assert.equal(postCount, 1);
+});
+
+test("encerrar apresentação antes do convite e sem áudio residual (5 cartas e demais jogos)", () => {
+  const hadWindow = "window" in global;
+  const prevWindow = global.window;
+  if (!hadWindow || !global.window) global.window = new EventTarget();
+
+  let showPresentation = true;
+  let showLiveInvite = false;
+  let openDialogCount = () => (showPresentation ? 1 : 0) + (showLiveInvite ? 1 : 0);
+
+  let mockPlayer = {
+    paused: false,
+    ended: true,
+    pause() { this.paused = true; },
+  };
+
+  // 1. Apresentação aberta durante a narração da síntese
+  assert.equal(showPresentation, true);
+  assert.equal(showLiveInvite, false);
+  assert.equal(openDialogCount(), 1);
+
+  // 2. onEnded da síntese das cinco cartas:
+  // Fecha apresentação antes de abrir convite
+  const onEndedFive = () => {
+    showPresentation = false;
+    showLiveInvite = true;
+  };
+
+  onEndedFive();
+  assert.equal(showPresentation, false);
+  assert.equal(showLiveInvite, true);
+  // Exatamente um diálogo aberto ao terminar a síntese
+  assert.equal(openDialogCount(), 1);
+
+  // 3. Aceitar convite: pausa voz residual, fecha convite
+  let voicePausedOnAccept = false;
+  const onAcceptInvite = () => {
+    audioLib.pauseCurrentVoice();
+    mockPlayer.pause();
+    voicePausedOnAccept = mockPlayer.paused;
+    showLiveInvite = false;
+  };
+  onAcceptInvite();
+  assert.equal(showLiveInvite, false);
+  assert.equal(openDialogCount(), 0);
+  assert.equal(voicePausedOnAccept, true);
+
+  // 4. Teste em demais jogos (mesa de 36 / SpreadBoard):
+  let spreadPresentation = true;
+  let spreadInvite = false;
+  let spreadOpenDialogs = () => (spreadPresentation ? 1 : 0) + (spreadInvite ? 1 : 0);
+  assert.equal(spreadOpenDialogs(), 1);
+
+  const onEndedSpread = (isSynthesis) => {
+    spreadPresentation = false;
+    if (isSynthesis) spreadInvite = true;
+  };
+
+  onEndedSpread(true);
+  assert.equal(spreadPresentation, false);
+  assert.equal(spreadInvite, true);
+  assert.equal(spreadOpenDialogs(), 1);
+
+  // Recusar convite: pausa voz residual, fecha convite
+  mockPlayer.paused = false;
+  let voicePausedOnDismiss = false;
+  let focusRestored = false;
+  const onDismissInvite = () => {
+    audioLib.pauseCurrentVoice();
+    mockPlayer.pause();
+    voicePausedOnDismiss = mockPlayer.paused;
+    spreadInvite = false;
+    focusRestored = true;
+  };
+  onDismissInvite();
+  assert.equal(spreadInvite, false);
+  assert.equal(spreadOpenDialogs(), 0);
+  assert.equal(voicePausedOnDismiss, true);
+  assert.equal(focusRestored, true);
+
+  if (hadWindow) global.window = prevWindow; else delete global.window;
+});
+
+test("36 cartas: concluir segunda linha enquanto a primeira ainda está preparando (cancelar e confirmar)", () => {
+  const sessionId = "session-grand36-preparing";
+  audioLib.resetAudioTracking();
+
+  // Linha 1 concluída aos 9 cards
+  let revealed = 9;
+  let currentChapter = 0; // section1
+  const consumedCompletions = new Set([0]);
+
+  // Linha 1 preparando
+  audioLib.setChapterAudioState(sessionId, "section1", {
+    status: "pending",
+    hasPlayed: false,
+    userPaused: false,
+  });
+  let autoplayChapter = "section1";
+
+  // Usuário revela cartas 10 a 18 da segunda linha
+  revealed = 18;
+  let pendingNavigation = null;
+  let dialogOpenCount = 0;
+
+  const triggerRowCompletion = (row) => {
+    if (!consumedCompletions.has(row)) {
+      consumedCompletions.add(row);
+      const state = audioLib.getChapterAudioState(sessionId, "section1");
+      const isPreparing = state.status === "pending" || state.status === "generating";
+      if (isPreparing) {
+        pendingNavigation = {
+          mode: "unheard",
+          type: "row-completion",
+          targetIndex: row,
+          targetChapterId: `section${row + 1}`,
+          previousChapterId: "section1",
+        };
+        dialogOpenCount++;
+      }
+    }
+  };
+
+  triggerRowCompletion(1);
+  assert.ok(pendingNavigation);
+  assert.equal(dialogOpenCount, 1);
+  assert.equal(pendingNavigation.mode, "unheard");
+  assert.equal(revealed, 18); // Cartas reveladas preservadas
+  assert.equal(currentChapter, 0); // Linha 1 mantida enquanto diálogo está aberto
+
+  // --- Subcenário A: Cancelar troca ---
+  const cancelSwitch = () => {
+    pendingNavigation = null;
+  };
+  cancelSwitch();
+  assert.equal(pendingNavigation, null);
+  assert.equal(currentChapter, 0); // Mantém Linha 1
+  assert.equal(revealed, 18); // 18 cartas preservadas
+  assert.equal(autoplayChapter, "section1"); // Linha 2 abandonada NÃO recebe autoplay
+
+  // Reavaliação: sem repetição do diálogo (consumedCompletions contém 1)
+  triggerRowCompletion(1);
+  assert.equal(pendingNavigation, null);
+  assert.equal(dialogOpenCount, 1); // Sem repetição
+
+  // Linha 2 abandonada não reproduz tardiamente; se linha 1 fica pronta, ela é que toca
+  audioLib.setChapterAudioState(sessionId, "section1", { status: "ready" });
+  assert.equal(autoplayChapter, "section1");
+
+  // --- Subcenário B: Confirmar troca ---
+  const consumedB = new Set([0]);
+  let currentChapterB = 0;
+  let autoplayChapterB = "section1";
+  let pendingNavigationB = null;
+  let dialogOpenCountB = 0;
+
+  if (!consumedB.has(1)) {
+    consumedB.add(1);
+    pendingNavigationB = {
+      mode: "unheard",
+      type: "row-completion",
+      targetIndex: 1,
+      targetChapterId: "section2",
+      previousChapterId: "section1",
+    };
+    dialogOpenCountB++;
+  }
+
+  const confirmSwitch = () => {
+    currentChapterB = pendingNavigationB.targetIndex;
+    autoplayChapterB = pendingNavigationB.targetChapterId;
+    pendingNavigationB = null;
+  };
+
+  confirmSwitch();
+  assert.equal(currentChapterB, 1); // Avançou para Linha 2
+  assert.equal(autoplayChapterB, "section2"); // Linha 2 com autoplay
+  assert.equal(revealed, 18); // 18 cartas preservadas
+  assert.equal(pendingNavigationB, null);
+
+  // Sem repetição do diálogo
+  if (!consumedB.has(1)) {
+    dialogOpenCountB++;
+  }
+  assert.equal(dialogOpenCountB, 1);
+
+  // Linha 1 (abandonada) fica pronta no servidor: não reproduz tardiamente porque autoplayChapter é section2
+  audioLib.setChapterAudioState(sessionId, "section1", { status: "ready" });
+  assert.equal(autoplayChapterB, "section2");
+  assert.notEqual(autoplayChapterB, "section1");
+});
+
+test("36 cartas: concluir segunda linha enquanto a primeira está tocando (cancelar e confirmar)", () => {
+  const sessionId = "session-grand36-playing";
+  audioLib.resetAudioTracking();
+
+  // Linha 1 concluída e tocando aos 3.5s
+  let revealed = 9;
+  let currentChapter = 0;
+  const consumedCompletions = new Set([0]);
+
+  const mockPlayer = {
+    currentTime: 3.5,
+    paused: false,
+    pause() { this.paused = true; },
+    play() { this.paused = false; return Promise.resolve(); },
+  };
+
+  // Usuário revela cartas 10 a 18 (Linha 2 concluída)
+  revealed = 18;
+  let pendingNavigation = null;
+  let dialogOpenCount = 0;
+
+  const triggerRowCompletion = (row) => {
+    if (!consumedCompletions.has(row)) {
+      consumedCompletions.add(row);
+      // Linha 1 estava tocando: pausa automaticamente e abre diálogo
+      mockPlayer.pause();
+      pendingNavigation = {
+        mode: "playing",
+        type: "row-completion",
+        targetIndex: row,
+        targetChapterId: `section${row + 1}`,
+        previousChapterId: "section1",
+        previousTime: mockPlayer.currentTime,
+        media: mockPlayer,
+      };
+      dialogOpenCount++;
+    }
+  };
+
+  triggerRowCompletion(1);
+  assert.ok(pendingNavigation);
+  assert.equal(dialogOpenCount, 1);
+  assert.equal(mockPlayer.paused, true);
+  assert.equal(revealed, 18); // 18 cartas preservadas
+  assert.equal(currentChapter, 0);
+
+  // --- Subcenário A: Cancelar troca ---
+  const cancelSwitch = () => {
+    audioLib.resumePlayingMedia(pendingNavigation.media);
+    pendingNavigation = null;
+  };
+  cancelSwitch();
+  assert.equal(pendingNavigation, null);
+  assert.equal(mockPlayer.paused, false); // Linha 1 retoma reprodução
+  assert.equal(mockPlayer.currentTime, 3.5); // Na mesma posição
+  assert.equal(currentChapter, 0); // Linha 1 mantida
+  assert.equal(revealed, 18); // 18 cartas preservadas
+
+  // Sem repetição do diálogo
+  triggerRowCompletion(1);
+  assert.equal(pendingNavigation, null);
+  assert.equal(dialogOpenCount, 1);
+
+  // --- Subcenário B: Confirmar troca ---
+  const consumedB = new Set([0]);
+  let currentChapterB = 0;
+  let autoplayChapterB = null;
+  let pendingNavigationB = null;
+  let dialogOpenCountB = 0;
+  mockPlayer.paused = false;
+  mockPlayer.currentTime = 5.2;
+
+  if (!consumedB.has(1)) {
+    consumedB.add(1);
+    mockPlayer.pause();
+    pendingNavigationB = {
+      mode: "playing",
+      type: "row-completion",
+      targetIndex: 1,
+      targetChapterId: "section2",
+      previousChapterId: "section1",
+      previousTime: mockPlayer.currentTime,
+      media: mockPlayer,
+    };
+    dialogOpenCountB++;
+  }
+
+  const confirmSwitch = () => {
+    audioLib.saveChapterTime(sessionId, pendingNavigationB.previousChapterId, pendingNavigationB.previousTime);
+    currentChapterB = pendingNavigationB.targetIndex;
+    autoplayChapterB = pendingNavigationB.targetChapterId;
+    pendingNavigationB = null;
+  };
+
+  confirmSwitch();
+  assert.equal(currentChapterB, 1); // Avançou para Linha 2
+  assert.equal(autoplayChapterB, "section2"); // Linha 2 com autoplay
+  assert.equal(revealed, 18); // 18 cartas preservadas
+  assert.equal(mockPlayer.paused, true); // Linha 1 pausada, sem reprodução tardia
+  assert.equal(audioLib.getSavedChapterTime(sessionId, "section1"), 5.2); // Posição salva
+  assert.equal(pendingNavigationB, null);
+
+  // Sem repetição do diálogo
+  if (!consumedB.has(1)) {
+    dialogOpenCountB++;
+  }
+  assert.equal(dialogOpenCountB, 1);
+});

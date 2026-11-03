@@ -25,7 +25,17 @@ const scenes = {
   },
 } as const;
 
-export function ConsultationScene({ session, variant = "standalone", children }: { session: ReadingSessionPayload; variant?: "standalone" | "tabletop"; children?: ReactNode }) {
+export function ConsultationScene({
+  session,
+  variant = "standalone",
+  onToggleImmersive,
+  children,
+}: {
+  session: ReadingSessionPayload;
+  variant?: "standalone" | "tabletop";
+  onToggleImmersive?: () => void;
+  children?: ReactNode;
+}) {
   const tabletop = variant === "tabletop";
   const scene = scenes[session.persona as keyof typeof scenes] ?? scenes["Oráculo da Galáxia"];
   const art = sceneAssets(session.persona);
@@ -155,6 +165,11 @@ export function ConsultationScene({ session, variant = "standalone", children }:
         <span className="absolute bottom-1 right-3 z-10 text-[9px] text-slate-300/80 sm:bottom-2 sm:right-5">Versos ilustrativos</span></>}
       </div>
       {tabletop ? <div className="scene-toolbar flex shrink-0 flex-wrap items-center gap-2 px-4 py-3 lg:px-5">
+        {onToggleImmersive && (
+          <button type="button" onClick={onToggleImmersive} className="min-h-11 rounded-full border border-amber-300/60 bg-amber-950/40 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-900/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300">
+            ✦ Visão imersiva
+          </button>
+        )}
         <button type="button" onClick={() => setPanelOpen(true)} className="min-h-11 rounded-full border border-amber-300/50 px-4 py-2 text-xs font-medium text-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300">Som e tamanho do texto</button>
         {sound === true && <button type="button" onClick={() => playWelcome()} className="min-h-11 rounded-full border border-white/30 px-4 py-2 text-xs text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300">{playing ? "Pausar acolhimento" : "Ouvir acolhimento"}</button>}
       </div> : <><div className="scene-footer flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8 sm:py-4">
@@ -196,6 +211,20 @@ export function ConsultationScene({ session, variant = "standalone", children }:
         <SoundscapeControls persona={session.persona} sessionId={session.id} />
         {sound === true && <button type="button" onClick={() => playWelcome()} className="mt-3 block min-h-12 text-sm text-amber-200 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">{playing ? "Pausar acolhimento" : "Ouvir acolhimento"}</button>}
         {session.isPaid && revealed === total && <a href={`#oracle-live-${session.id}`} onClick={() => { setPanelOpen(false); const disclosure = document.getElementById(`oracle-live-${session.id}`)?.closest("details"); if (disclosure) disclosure.open = true; }} className="mt-3 flex min-h-12 items-center text-sm text-cyan-200 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">Ir para a conversa</a>}
+        {onToggleImmersive && (
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                setPanelOpen(false);
+                onToggleImmersive();
+              }}
+              className="flex min-h-12 w-full items-center justify-center rounded-xl border border-amber-300/50 bg-amber-950/40 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-900/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
+            >
+              Alternar para visão imersiva ↗
+            </button>
+          </div>
+        )}
         {soundError && <p role="alert" className="mt-2 text-xs text-rose-300">{isLiveVoiceActive() ? "Encerre a conversa antes de ouvir o acolhimento." : "Áudio indisponível neste momento."}</p>}
       </div>
       <button ref={avatarButton} type="button" aria-label={`${panelOpen ? "Fechar" : "Abrir"} controles da consulta`} aria-expanded={panelOpen} aria-controls={panelId} onClick={() => setPanelOpen((open) => !open)} className="relative grid size-16 place-items-center rounded-full border-2 border-amber-300/70 bg-slate-950 shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-300">

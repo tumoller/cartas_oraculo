@@ -290,9 +290,10 @@ export function ReadingAudio({
       })
       .catch(() => {
         setAutoplayBlocked(true);
+        onOpenPresentation?.();
         setError("O navegador pediu um toque para iniciar a narração. Toque em Reproduzir narração.");
       });
-  }, [autoPlay, playbackReady, soundEnabled, status, url]);
+  }, [autoPlay, playbackReady, soundEnabled, status, url, onOpenPresentation]);
 
   const resumeAudio = () => {
     if (!playbackReady || isLiveVoiceActive()) return;

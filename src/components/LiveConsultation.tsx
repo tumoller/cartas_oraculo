@@ -23,7 +23,7 @@ type LiveServerMessage = {
 
 const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
 
-export function LiveConsultation({ session }: { session: ReadingSessionPayload }) {
+export function LiveConsultation({ session, immersive = false }: { session: ReadingSessionPayload; immersive?: boolean }) {
   const soundEnabled = useSoundPreference();
   const soundAllowed = useRef(soundEnabled === true);
   soundAllowed.current = soundEnabled === true;
@@ -34,6 +34,9 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [microphoneOn, setMicrophoneOn] = useState(false);
+  const microphoneEnabled = useRef(false);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const voiceEnabled = useRef(true);
   const socket = useRef<WebSocket | null>(null);
   const playback = useRef<AudioContext | null>(null);
   const output = useRef<GainNode | null>(null);
@@ -65,6 +68,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
     current.stream.getTracks().forEach((track) => track.stop());
     void current.context.close();
     mic.current = null;
+    microphoneEnabled.current = false;
     setMicrophoneOn(false);
     window.dispatchEvent(new CustomEvent("oracle-microphone", { detail: { active: false } }));
     if (socket.current?.readyState === WebSocket.OPEN) {
@@ -94,11 +98,11 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
   };
 
   useEffect(() => {
-    if (output.current) output.current.gain.value = soundEnabled === true ? getVoiceVolume() : 0;
+    if (output.current) output.current.gain.value = soundEnabled === true && voiceEnabled.current ? getVoiceVolume() : 0;
   }, [soundEnabled]);
 
   useEffect(() => {
-    const volumeChanged = () => { if (output.current) output.current.gain.value = soundAllowed.current ? getVoiceVolume() : 0; };
+    const volumeChanged = () => { if (output.current) output.current.gain.value = soundAllowed.current && voiceEnabled.current ? getVoiceVolume() : 0; };
     window.addEventListener("oracle-voice-volume", volumeChanged);
     return () => window.removeEventListener("oracle-voice-volume", volumeChanged);
   }, []);
@@ -107,7 +111,13 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
     const silence = () => {
       soundAllowed.current = false;
       if (output.current) output.current.gain.value = 0;
-      stopMic();
+      if (mic.current) {
+        microphoneEnabled.current = false;
+        mic.current.stream.getAudioTracks().forEach((track) => { track.enabled = false; });
+        setMicrophoneOn(false);
+        window.dispatchEvent(new CustomEvent("oracle-microphone", { detail: { active: false } }));
+        if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
+      }
     };
     window.addEventListener("oracle-sound-off", silence);
     return () => window.removeEventListener("oracle-sound-off", silence);
@@ -141,6 +151,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
     }
     return () => {
       expired.current = true;
+      microphoneEnabled.current = false;
       if (timer.current) clearInterval(timer.current);
       mic.current?.stream.getTracks().forEach((track) => track.stop());
       if (mic.current) void mic.current.context.close();
@@ -227,7 +238,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
     try {
       playback.current = new AudioContext();
       output.current = playback.current.createGain();
-      output.current.gain.value = getVoiceVolume();
+      output.current.gain.value = voiceEnabled.current ? getVoiceVolume() : 0;
       outputMeter.current = playback.current.createAnalyser();
       outputMeter.current.fftSize = 256;
       output.current.connect(outputMeter.current);
@@ -283,7 +294,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
                   const sink = context.createGain();
                   sink.gain.value = 0;
                   processor.onaudioprocess = (ev) => {
-                    if (socket.current?.readyState !== WebSocket.OPEN) return;
+                    if (!microphoneEnabled.current || socket.current?.readyState !== WebSocket.OPEN) return;
                     const input = ev.inputBuffer.getChannelData(0);
                     const ratio = ev.inputBuffer.sampleRate / 16000;
                     const pcm = new Int16Array(Math.floor(input.length / ratio));
@@ -300,6 +311,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
                   processor.connect(sink);
                   sink.connect(context.destination);
                   mic.current = { stream, context, source, processor, sink };
+                  microphoneEnabled.current = true;
                   setMicrophoneOn(true);
                   window.dispatchEvent(new CustomEvent("oracle-microphone", { detail: { active: true } }));
                   setStatus("Conectado. Microfone ligado. Você já pode falar sobre sua leitura.");
@@ -346,7 +358,20 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
   };
 
   const toggleMic = async () => {
-    if (mic.current) { stopMic(); return; }
+    if (mic.current) {
+      if (!microphoneEnabled.current && !soundAllowed.current) {
+        setStatus("Ative o som no avatar antes de ligar o microfone.");
+        return;
+      }
+      const enabled = !microphoneEnabled.current;
+      microphoneEnabled.current = enabled;
+      mic.current.stream.getAudioTracks().forEach((track) => { track.enabled = enabled; });
+      setMicrophoneOn(enabled);
+      window.dispatchEvent(new CustomEvent("oracle-microphone", { detail: { active: enabled } }));
+      if (!enabled && socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
+      setStatus(enabled ? "Microfone ligado. Fale sobre sua leitura." : "Microfone desligado. Você pode escrever sua pergunta.");
+      return;
+    }
     if (soundEnabled !== true) {
       setStatus("Ative o som no avatar antes de ligar o microfone.");
       return;
@@ -382,7 +407,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
       const sink = context.createGain();
       sink.gain.value = 0;
       processor.onaudioprocess = (event) => {
-        if (socket.current?.readyState !== WebSocket.OPEN) return;
+        if (!microphoneEnabled.current || socket.current?.readyState !== WebSocket.OPEN) return;
         const input = event.inputBuffer.getChannelData(0);
         const ratio = event.inputBuffer.sampleRate / 16000;
         const pcm = new Int16Array(Math.floor(input.length / ratio));
@@ -399,6 +424,7 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
       processor.connect(sink);
       sink.connect(context.destination);
       mic.current = { stream, context, source, processor, sink };
+      microphoneEnabled.current = true;
       setMicrophoneOn(true);
       window.dispatchEvent(new CustomEvent("oracle-microphone", { detail: { active: true } }));
       setStatus("Microfone ligado. Fale sobre sua leitura.");
@@ -413,34 +439,38 @@ export function LiveConsultation({ session }: { session: ReadingSessionPayload }
   const scene = sceneAssets(session.persona);
 
   return (
-    <section id={`oracle-live-${session.id}`} className="scroll-mt-6 rounded-2xl border border-cyan-500/40 bg-slate-900/90 p-5 sm:p-6 text-slate-100" aria-labelledby="live-title">
-      <div className="relative mb-5 h-[min(27dvh,220px)] min-h-36 overflow-hidden rounded-xl border border-white/10 bg-slate-950" style={{ backgroundImage: `radial-gradient(ellipse at 50% 100%, ${scene.accent}40, transparent 72%)` }}>
+    <section id={`oracle-live-content-${session.id}`} className={`scroll-mt-6 rounded-2xl border border-cyan-500/40 bg-slate-900/90 text-slate-100 ${immersive ? "flex min-h-0 flex-1 flex-col overflow-hidden p-3" : "p-5 sm:p-6"}`} aria-labelledby="live-title">
+      {!immersive && <div className="relative mb-5 h-[min(27dvh,220px)] min-h-36 overflow-hidden rounded-xl border border-white/10 bg-slate-950" style={{ backgroundImage: `radial-gradient(ellipse at 50% 100%, ${scene.accent}40, transparent 72%)` }}>
         <Image src={scene.close} alt={`Personagem da leitura: ${session.persona}`} fill sizes="(max-width: 640px) 90vw, 700px" quality={80} className="object-contain object-center" />
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-linear-to-t from-slate-950 to-transparent px-3 pb-3 pt-8 text-xs">
           <span className="rounded-full bg-slate-950/80 px-3 py-2">{session.persona}</span>
           {(state === "connecting" || state === "ready") && <span className="rounded-full border border-white/20 bg-slate-950/90 px-3 py-2 font-semibold tabular-nums">{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</span>}
         </div>
-      </div>
+      </div>}
       <h3 id="live-title" className="font-serif text-xl text-cyan-200">Converse sobre sua leitura</h3>
-      <p className="mt-1 text-sm text-slate-300">Você tem 3 minutos para tirar dúvidas e aprofundar sua leitura. Esta conversa acompanha as cartas que já saíram na sua mesa.</p>
-      <p role="status" aria-live="polite" className="mt-3 text-sm text-amber-200">{status}</p>
+      <p className={`mt-1 text-slate-300 ${immersive ? "text-xs" : "text-sm"}`}>{immersive ? "Até 3 minutos para conversar sobre sua leitura." : "Você tem 3 minutos para tirar dúvidas e aprofundar sua leitura. Esta conversa acompanha as cartas que já saíram na sua mesa."}</p>
+      <p role="status" aria-live="polite" className={`${immersive ? "mt-1 text-xs" : "mt-3 text-sm"} text-amber-200`}>{status}</p>
       {state === "idle" ? (
         <button type="button" onClick={() => void start()} className="mt-4 min-h-12 rounded-xl bg-cyan-700 px-5 py-2.5 font-semibold text-white hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400">Começar conversa com som</button>
       ) : (
         <>
-          {state !== "ended" && <p className="mt-3 text-sm font-semibold text-cyan-200">Tempo restante: {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</p>}
-          <div className="mt-4 max-h-64 space-y-3 overflow-y-auto rounded-xl bg-slate-950/70 p-3" role="log" aria-label="Conversa ao vivo">
+          {state !== "ended" && <p className={`${immersive ? "mt-1 text-xs" : "mt-3 text-sm"} font-semibold text-cyan-200`}>Tempo restante: {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</p>}
+          <div className={`min-h-0 space-y-3 overflow-y-auto rounded-xl bg-slate-950/70 p-3 ${immersive ? "mt-2 flex-1" : "mt-4 max-h-64"}`} role="log" aria-label="Conversa ao vivo">
             {messages.length ? messages.map((message, index) => <p key={index} className="text-sm"><strong className="text-cyan-200">{message.from}: </strong>{message.text}</p>) : <p className="text-sm text-slate-400">A conversa aparecerá aqui.</p>}
           </div>
           {state === "ready" && <>
-            <form onSubmit={sendText} className="mt-4 flex gap-2">
+            <form onSubmit={sendText} className={`${immersive ? "mt-2" : "mt-4"} flex gap-2`}>
               <label htmlFor={`live-text-${session.id}`} className="sr-only">Pergunta sobre a leitura</label>
               <input id={`live-text-${session.id}`} value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={500} placeholder="Pergunte sobre suas cartas" className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white" />
               <button type="submit" disabled={!draft.trim()} className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold disabled:opacity-50">Enviar</button>
             </form>
-            <button type="button" onClick={toggleMic} aria-pressed={microphoneOn} className="mt-3 min-h-12 rounded-xl border border-cyan-500/50 px-4 py-2 text-sm hover:bg-slate-800">{microphoneOn ? "Desligar microfone" : "Ligar microfone"}</button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={toggleMic} aria-pressed={microphoneOn} className="min-h-11 rounded-xl border border-cyan-500/50 px-3 py-2 text-sm hover:bg-slate-800">{microphoneOn ? "Desligar microfone" : "Ligar microfone"}</button>
+            <button type="button" aria-pressed={voiceOn} onClick={() => { const enabled = !voiceEnabled.current; voiceEnabled.current = enabled; setVoiceOn(enabled); if (output.current) output.current.gain.value = enabled && soundAllowed.current ? getVoiceVolume() : 0; }} className="min-h-11 rounded-xl border border-cyan-500/50 px-3 py-2 text-sm hover:bg-slate-800">{voiceOn ? "Silenciar voz" : "Ativar voz"}</button>
+            <button type="button" onClick={() => end("Conversa encerrada por você.")} className="min-h-11 px-2 text-sm text-slate-300 underline">Encerrar</button>
+            </div>
           </>}
-          {state !== "ended" && <button type="button" onClick={() => end("Conversa encerrada por você.")} className="ml-3 mt-3 text-sm text-slate-300 underline">Encerrar</button>}
+          {state === "connecting" && <button type="button" onClick={() => end("Conversa encerrada por você.")} className="mt-3 min-h-11 text-sm text-slate-300 underline">Encerrar</button>}
         </>
       )}
     </section>

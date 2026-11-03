@@ -30,6 +30,17 @@ export function ListeningDock({ session }: { session: ReadingSessionPayload }) {
     return () => { window.removeEventListener("oracle-voice-state", changed); window.removeEventListener("oracle-live-state", liveChanged); };
   }, []);
 
+  // Continuous auto-follow sync when option is enabled
+  useEffect(() => {
+    if (follow && voice?.active && voice.kind === "chapter" && voice.chapter) {
+      window.dispatchEvent(
+        new CustomEvent("oracle-chapter-focus", {
+          detail: { sessionId: session.id, chapter: voice.chapter },
+        })
+      );
+    }
+  }, [follow, voice?.active, voice?.kind, voice?.chapter, session.id]);
+
   if (!voice) return null;
   const title = voice.kind === "chapter" ? `Ouvindo ${voice.chapter === "synthesis" ? "a síntese" : voice.chapter?.replace(/^(card|section)/, "parte ") ?? "a narração"}` : voice.kind === "welcome" ? "Acolhimento" : "Conversa ao vivo";
   const action = voice.active ? "Pausar áudio" : voice.kind === "welcome" ? "Ouvir acolhimento" : "Retomar áudio";
@@ -42,10 +53,42 @@ export function ListeningDock({ session }: { session: ReadingSessionPayload }) {
         <p className="min-w-0 flex-1 truncate text-sm font-semibold text-amber-100">{title}</p>
         {voice.kind !== "live" ? <button type="button" disabled={!voice.active && (!soundEnabled || !canResumeCurrentVoice())} onClick={() => voice.active ? pauseCurrentVoice() : void resumeCurrentVoice(soundEnabled).catch(() => setResumeError(true))} className="min-h-12 shrink-0 px-2 text-sm underline underline-offset-4 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">{action}</button> : <span className="text-xs text-cyan-200">Ao vivo</span>}
       </div>
-      {voice.kind === "chapter" && <details className="border-t border-white/10 px-3 py-1 text-sm text-slate-200"><summary className="min-h-10 cursor-pointer py-2">Opções de escuta</summary><label className="flex items-center gap-2 pb-3"><input type="checkbox" checked={follow} onChange={(event) => {
-        setFollowListening(event.target.checked);
-        if (event.target.checked && voice.active) window.dispatchEvent(new CustomEvent("oracle-chapter-focus", { detail: { sessionId: session.id, chapter: voice.chapter } }));
-      }} className="size-4 accent-amber-300" />Acompanhar trecho na tela</label></details>}
+      {voice.kind === "chapter" && (
+        <details className="border-t border-white/10 px-3 py-1 text-sm text-slate-200">
+          <summary className="min-h-10 cursor-pointer py-2">Opções de escuta</summary>
+          <div className="pb-3 space-y-2">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={follow}
+                onChange={(event) => {
+                  setFollowListening(event.target.checked);
+                  if (event.target.checked && voice.active) {
+                    window.dispatchEvent(new CustomEvent("oracle-chapter-focus", { detail: { sessionId: session.id, chapter: voice.chapter } }));
+                  }
+                }}
+                className="size-4 accent-amber-300"
+              />
+              <span>Acompanhar trecho na tela</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (voice.chapter) {
+                  window.dispatchEvent(
+                    new CustomEvent("oracle-chapter-focus", {
+                      detail: { sessionId: session.id, chapter: voice.chapter },
+                    })
+                  );
+                }
+              }}
+              className="block text-xs text-amber-200 underline underline-offset-4"
+            >
+              Abrir capítulo narrado
+            </button>
+          </div>
+        </details>
+      )}
       {resumeError && <p role="alert" className="px-3 pb-2 text-xs text-rose-300">Toque no player para ouvir.</p>}
     </aside>
   );

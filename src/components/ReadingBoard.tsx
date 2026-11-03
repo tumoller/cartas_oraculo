@@ -1,5 +1,7 @@
 "use client";
 
+import "./LivePanel.css";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRevealTransition } from "@/lib/reveal-transition";
 import { setSoundPreference } from "@/lib/sound-preference";
@@ -7,6 +9,7 @@ import type { ReadingSessionPayload } from "@/types";
 import { ConsultationReadingPane } from "./ConsultationReadingPane";
 import { ConsultationTable } from "./ConsultationTable";
 import { ConsultationWorkspace } from "./ConsultationWorkspace";
+import { ConsultationImmersive } from "./ConsultationImmersive";
 import { LiveConsultation } from "./LiveConsultation";
 import { PixModal } from "./PixModal";
 import { ReadingAudio } from "./ReadingAudio";
@@ -54,6 +57,24 @@ export function ReadingBoard({
     media: HTMLAudioElement | null;
   } | null>(null);
   const [liveInviteDismissed, setLiveInviteDismissed] = useState(false);
+  const [viewMode, setViewMode] = useState<"normal" | "immersive">("normal");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("oracle_view_mode");
+      // Restore browser preference after hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved === "normal" || saved === "immersive") setViewMode(saved);
+    } catch {}
+  }, []);
+
+  const togglePresentation = useCallback(() => {
+    setViewMode((curr) => {
+      const next = curr === "normal" ? "immersive" : "normal";
+      try { localStorage.setItem("oracle_view_mode", next); } catch {}
+      return next;
+    });
+  }, []);
   const previewCompleted = useRef(false);
   const fullCompleted = useRef(false);
   const revealedEvents = useRef(new Set<number>());
@@ -294,10 +315,15 @@ export function ReadingBoard({
 
   return (
     <>
-      <ConsultationWorkspace session={session} table={table}>
-        <div className="space-y-5">
-          <div ref={chapterRef} tabIndex={-1} data-reading-chapter={chapter} className="scroll-mt-24 focus:outline-hidden">
-            <ConsultationReadingPane
+      <div style={{ display: viewMode === "normal" ? "block" : "none" }}>
+        <ConsultationWorkspace
+          session={session}
+          table={table}
+          onToggleImmersive={togglePresentation}
+        >
+          <div className="space-y-5">
+            <div ref={chapterRef} tabIndex={-1} data-reading-chapter={chapter} className="scroll-mt-24 focus:outline-hidden">
+              <ConsultationReadingPane
               title={"Leitura de " + session.userName}
               subtitle={
                 activeView === "card"
@@ -387,21 +413,46 @@ export function ReadingBoard({
               }
             />
           </div>
-          {synthesisReady && (
-            <details id={`oracle-live-${session.id}`} className="rounded-2xl border border-cyan-500/30 bg-slate-950/50 p-3">
-              <summary className="cursor-pointer text-sm font-semibold text-cyan-200">Converse sobre sua leitura</summary>
-              <div className="mt-3">
-                <LiveConsultation session={session} />
-              </div>
-            </details>
-          )}
+
           {session.isPaid && revealed === 5 && <WhatsAppUpsell session={session} />}
           <button type="button" onClick={onReset} className="mx-auto block min-h-11 text-sm text-slate-300 underline underline-offset-4">
             Realizar nova leitura
           </button>
         </div>
       </ConsultationWorkspace>
-      <CardRevealDialog
+    </div>
+
+    <div style={{ display: viewMode === "immersive" ? "block" : "none" }}>
+      <ConsultationImmersive
+        session={session}
+        revealed={revealed}
+        onRevealNext={() => reveal(revealed + 1)}
+        chapter={activeView === "overview" ? 1 : 0}
+        chapters={[
+          { id: "cards", title: "As cartas da sua mesa" },
+          { id: "synthesis", title: session.isPaid ? "Leitura das cinco cartas" : "Prévia das três cartas" },
+        ]}
+        onSelectChapter={(idx) => handleNavigationSelect(idx === 1 ? "overview" : "card1")}
+        current={position}
+        highlightedPositions={activeView === "overview" ? [1, 2, 3, 4, 5].slice(0, session.isPaid ? 5 : 3) : [position]}
+        onSelectCard={selectFromTable}
+        chapterText={session.isPaid ? session.aiReading.generalSynthesis : preview}
+        cardNote={text ?? undefined}
+        onTogglePresentation={togglePresentation}
+        narrationReady={synthesisReady}
+        onStartNarration={() => { setSoundPreference(true); setNarration(true); setAutoplayChapter("synthesis"); }}
+        busy={revealingPosition !== null}
+      />
+    </div>
+
+  {synthesisReady && (
+    <details id={`oracle-live-${session.id}`} className={`oracle-live-panel ${viewMode === "immersive" ? "oracle-live-immersive" : ""}`}>
+      <summary>Converse sobre sua leitura</summary>
+      <LiveConsultation session={session} immersive={viewMode === "immersive"} />
+    </details>
+  )}
+
+    <CardRevealDialog
         card={enlargedPosition === null ? null : session.cardsDrawn[enlargedPosition - 1] ?? null}
         note={
           groupReady && enlargedPosition !== null

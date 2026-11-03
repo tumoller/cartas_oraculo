@@ -33,3 +33,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /.data/
+
+# scratch & temporary test profiles
+/scratch/
+prototipo-*.html
+
+# test suites and artifacts (kept locally)
+/tests/
+/docs/testes/
+/conteudo/
+
+

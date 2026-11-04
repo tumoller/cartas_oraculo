@@ -4,7 +4,7 @@ import "./LivePanel.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRevealTransition } from "@/lib/reveal-transition";
-import { setSoundPreference } from "@/lib/sound-preference";
+import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
 import type { ReadingSessionPayload } from "@/types";
 import { ConsultationReadingPane } from "./ConsultationReadingPane";
 import { ConsultationTable } from "./ConsultationTable";
@@ -38,6 +38,7 @@ export function ReadingBoard({
   onReset: () => void;
   initialNarration?: boolean;
 }) {
+  const soundPref = useSoundPreference();
   const [session, setSession] = useState(initialSession);
   const [revealed, setRevealed] = useState(0);
   const [position, setPosition] = useState(1);
@@ -57,7 +58,15 @@ export function ReadingBoard({
     media: HTMLAudioElement | null;
   } | null>(null);
   const [liveInviteDismissed, setLiveInviteDismissed] = useState(false);
-  const [viewMode, setViewMode] = useState<"normal" | "immersive">("normal");
+  const [viewMode, setViewMode] = useState<"normal" | "immersive">("immersive");
+
+  useEffect(() => {
+    if (narration === null && soundPref !== null) {
+      // Restore saved sound preference when opening saved readings.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNarration(soundPref);
+    }
+  }, [narration, soundPref]);
 
   useEffect(() => {
     try {
@@ -85,6 +94,7 @@ export function ReadingBoard({
   const groupReady = revealed === (session.isPaid ? 5 : 3) && revealingPosition === null;
   const synthesisReady = session.isPaid && groupReady;
   const chapter = activeView === "overview" && synthesisReady ? "synthesis" : "cards";
+  const effectiveNarration = narration ?? soundPref;
 
   useEffect(() => {
     if (revealingPosition !== null || enlargedPosition !== null) return;
@@ -98,13 +108,13 @@ export function ReadingBoard({
     if (revealed === 5 && !fullCompleted.current) {
       fullCompleted.current = true;
       setActiveView("overview");
-      if (narration === true) {
+      if (effectiveNarration === true) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setAutoplayChapter("synthesis");
         setShowPresentation(true);
       }
     }
-  }, [revealed, session.isPaid, enlargedPosition, revealingPosition, narration]);
+  }, [revealed, session.isPaid, enlargedPosition, revealingPosition, effectiveNarration]);
 
   const reveal = (next: number) => {
     if (revealingPosition !== null) return;
@@ -214,7 +224,7 @@ export function ReadingBoard({
       (targetView === "card" && activeView === "card" && targetPos === position);
     if (isSame) return;
 
-    if (activeView === "overview" && targetView === "card" && narration === true) {
+    if (activeView === "overview" && targetView === "card" && effectiveNarration === true) {
       if (isAudioPlaying()) {
         const playing = getCurrentPlayingMedia();
         const pausedTime = playing?.currentTime ?? 0;
@@ -279,20 +289,20 @@ export function ReadingBoard({
       <button
         type="button"
         onClick={() => {
-          const enabled = narration !== true;
+          const enabled = effectiveNarration !== true;
           setNarration(enabled);
           setSoundPreference(enabled);
         }}
         className="mt-2 min-h-11 text-sm text-amber-200 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
       >
-        {narration === true ? "Seguir sem narração" : "Ouvir esta leitura"}
+        {effectiveNarration === true ? "Seguir sem narração" : "Ouvir esta leitura"}
       </button>
     </div>
   );
 
   const table = (
     <section className="min-w-0">
-      {narration === null && (
+      {effectiveNarration === null && (
         <NarrationChoice
           onChoose={(enabled) => {
             setNarration(enabled);
@@ -315,7 +325,7 @@ export function ReadingBoard({
 
   return (
     <>
-      <div style={{ display: viewMode === "normal" ? "block" : "none" }}>
+      <div className="w-full" style={{ display: viewMode === "normal" ? "block" : "none" }}>
         <ConsultationWorkspace
           session={session}
           table={table}
@@ -324,135 +334,139 @@ export function ReadingBoard({
           <div className="space-y-5">
             <div ref={chapterRef} tabIndex={-1} data-reading-chapter={chapter} className="scroll-mt-24 focus:outline-hidden">
               <ConsultationReadingPane
-              title={"Leitura de " + session.userName}
-              subtitle={
-                activeView === "card"
-                  ? "Carta " + position + " de 5" + (session.methodVersion === "lenormand-line-v1" ? "" : " · " + POSITION_NAMES[position - 1])
-                  : session.isPaid
-                    ? "As cinco cartas da sua mesa"
-                    : "As três cartas da sua prévia"
-              }
-              navigation={navigation}
-              card={activeCard}
-              note={isVisible && groupReady ? text ?? undefined : undefined}
-              revealed={isVisible}
-              revealing={revealingPosition === position}
-              readingLockedMessage={`Revele as ${session.isPaid ? "cinco" : "três"} cartas para ler a interpretação.`}
-              audio={
-                narration === true && session.isPaid ? (
-                  <ReadingAudio
-                    key="synthesis"
-                    sessionId={session.id}
-                    chapter="synthesis"
-                    title="Leitura das cinco cartas"
-                    persona={session.persona}
-                    lineLabel="Leitura das cinco cartas"
-                    chapterText={synthesisReady ? session.aiReading.generalSynthesis ?? undefined : undefined}
-                    prepare={session.isPaid && narration === true && synthesisReady}
-                    playbackReady={synthesisReady}
-                    autoPlay={autoplayChapter === "synthesis"}
-                    showPresentation={showPresentation}
-                    onOpenPresentation={() => setShowPresentation(true)}
-                    onDismissPresentation={() => setShowPresentation(false)}
-                    onAutoPlayConsumed={() => setAutoplayChapter(null)}
-                    onEnded={() => {
-                      setShowPresentation(false);
-                      if (session.isPaid && !liveInviteDismissed) setShowLiveInvite(true);
-                    }}
-                  />
-                ) : narration === true && groupReady ? (
-                  <p className="text-sm text-slate-300">A narração estará disponível ao abrir a leitura completa.</p>
-                ) : null
-              }
-              overview={
-                groupReady ? (
-                  <div>
-                    <div className="whitespace-pre-line">{session.isPaid ? session.aiReading.generalSynthesis : preview}</div>
-                    {session.isPaid && !liveInviteDismissed && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPresentation(false);
-                          setShowLiveInvite(true);
-                        }}
-                        className="mt-4 min-h-12 rounded-xl border border-cyan-400/50 bg-cyan-950/40 px-5 py-2.5 text-sm font-semibold text-cyan-200 hover:bg-cyan-900/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                      >
-                        Concluir leitura
-                      </button>
-                    )}
-                  </div>
-                ) : undefined
-              }
-              overviewTitle={session.isPaid ? "Leitura das cinco cartas" : "Prévia das três cartas"}
-              activeView={activeView}
-              onViewChange={(view) => handleNavigationSelect(view === "overview" ? "overview" : "card" + position)}
-              onPrevious={() => reveal(position - 1)}
-              onNext={() => reveal(position + 1)}
-              canPrevious={revealingPosition === null && position > 1}
-              canNext={revealingPosition === null && position < 5}
-              onEnlarge={isVisible ? () => setEnlargedPosition(position) : undefined}
-              revealAction={
-                revealingPosition === null && revealed < 5 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!session.isPaid && revealed === 3) {
-                        setIsPixModalOpen(true);
-                        return;
-                      }
-                      document.getElementById(`oracle-deck-${session.id}`)?.scrollIntoView({
-                        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-                        block: "center",
-                      });
-                    }}
-                    className="min-h-12 rounded-xl border border-amber-300/50 px-5 py-3 text-sm font-semibold text-amber-100"
-                  >
-                    {!session.isPaid && revealed === 3 ? "Abrir leitura completa" : "Voltar ao baralho"}
-                  </button>
-                ) : null
-              }
-            />
+                title={"Leitura de " + session.userName}
+                subtitle={
+                  activeView === "card"
+                    ? "Carta " + position + " de 5" + (session.methodVersion === "lenormand-line-v1" ? "" : " · " + POSITION_NAMES[position - 1])
+                    : session.isPaid
+                      ? "As cinco cartas da sua mesa"
+                      : "As três cartas da sua prévia"
+                }
+                navigation={navigation}
+                card={activeCard}
+                note={isVisible && groupReady ? text ?? undefined : undefined}
+                revealed={isVisible}
+                revealing={revealingPosition === position}
+                readingLockedMessage={`Revele as ${session.isPaid ? "cinco" : "três"} cartas para ler a interpretação.`}
+                audio={
+                  effectiveNarration === true && session.isPaid ? (
+                    <ReadingAudio
+                      key="synthesis"
+                      sessionId={session.id}
+                      chapter="synthesis"
+                      title="Leitura das cinco cartas"
+                      persona={session.persona}
+                      lineLabel="Leitura das cinco cartas"
+                      chapterText={synthesisReady ? session.aiReading.generalSynthesis ?? undefined : undefined}
+                      prepare={session.isPaid && effectiveNarration === true && synthesisReady}
+                      playbackReady={synthesisReady}
+                      autoPlay={autoplayChapter === "synthesis"}
+                      showPresentation={showPresentation}
+                      onOpenPresentation={() => setShowPresentation(true)}
+                      onDismissPresentation={() => setShowPresentation(false)}
+                      onAutoPlayConsumed={() => setAutoplayChapter(null)}
+                      onEnded={() => {
+                        setShowPresentation(false);
+                        if (session.isPaid && !liveInviteDismissed) setShowLiveInvite(true);
+                      }}
+                    />
+                  ) : effectiveNarration === true && groupReady ? (
+                    <p className="text-sm text-slate-300">A narração estará disponível ao abrir a leitura completa.</p>
+                  ) : null
+                }
+                overview={
+                  groupReady ? (
+                    <div>
+                      <div className="whitespace-pre-line">{session.isPaid ? session.aiReading.generalSynthesis : preview}</div>
+                      {session.isPaid && !liveInviteDismissed && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPresentation(false);
+                            setShowLiveInvite(true);
+                          }}
+                          className="mt-4 min-h-12 rounded-xl border border-cyan-400/50 bg-cyan-950/40 px-5 py-2.5 text-sm font-semibold text-cyan-200 hover:bg-cyan-900/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                        >
+                          Concluir leitura
+                        </button>
+                      )}
+                    </div>
+                  ) : undefined
+                }
+                overviewTitle={session.isPaid ? "Leitura das cinco cartas" : "Prévia das três cartas"}
+                activeView={activeView}
+                onViewChange={(view) => handleNavigationSelect(view === "overview" ? "overview" : "card" + position)}
+                onPrevious={() => reveal(position - 1)}
+                onNext={() => reveal(position + 1)}
+                canPrevious={revealingPosition === null && position > 1}
+                canNext={revealingPosition === null && position < 5}
+                onEnlarge={isVisible ? () => setEnlargedPosition(position) : undefined}
+                revealAction={
+                  revealingPosition === null && revealed < 5 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!session.isPaid && revealed === 3) {
+                          setIsPixModalOpen(true);
+                          return;
+                        }
+                        document.getElementById(`oracle-deck-${session.id}`)?.scrollIntoView({
+                          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                          block: "center",
+                        });
+                      }}
+                      className="min-h-12 rounded-xl border border-amber-300/50 px-5 py-3 text-sm font-semibold text-amber-100"
+                    >
+                      {!session.isPaid && revealed === 3 ? "Abrir leitura completa" : "Voltar ao baralho"}
+                    </button>
+                  ) : null
+                }
+              />
+            </div>
+
+            {session.isPaid && revealed === 5 && <WhatsAppUpsell session={session} />}
+            <button type="button" onClick={onReset} className="mx-auto block min-h-11 text-sm text-slate-300 underline underline-offset-4">
+              Realizar nova leitura
+            </button>
           </div>
+        </ConsultationWorkspace>
+      </div>
 
-          {session.isPaid && revealed === 5 && <WhatsAppUpsell session={session} />}
-          <button type="button" onClick={onReset} className="mx-auto block min-h-11 text-sm text-slate-300 underline underline-offset-4">
-            Realizar nova leitura
-          </button>
-        </div>
-      </ConsultationWorkspace>
-    </div>
+      <div className="w-full" style={{ display: viewMode === "immersive" ? "block" : "none" }}>
+        <ConsultationImmersive
+          session={session}
+          revealed={revealed}
+          onRevealNext={() => reveal(revealed + 1)}
+          chapter={activeView === "overview" ? 1 : 0}
+          chapters={[
+            { id: "cards", title: "As cartas da sua mesa" },
+            { id: "synthesis", title: session.isPaid ? "Leitura das cinco cartas" : "Prévia das três cartas" },
+          ]}
+          onSelectChapter={(idx) => handleNavigationSelect(idx === 1 ? "overview" : "card1")}
+          current={position}
+          highlightedPositions={activeView === "overview" ? [1, 2, 3, 4, 5].slice(0, session.isPaid ? 5 : 3) : [position]}
+          onSelectCard={selectFromTable}
+          chapterText={groupReady ? (session.isPaid ? session.aiReading.generalSynthesis : preview) : null}
+          cardNote={text ?? undefined}
+          onTogglePresentation={togglePresentation}
+          narrationReady={synthesisReady}
+          onStartNarration={() => {
+            setSoundPreference(true);
+            setNarration(true);
+            setAutoplayChapter("synthesis");
+          }}
+          busy={revealingPosition !== null}
+        />
+      </div>
 
-    <div style={{ display: viewMode === "immersive" ? "block" : "none" }}>
-      <ConsultationImmersive
-        session={session}
-        revealed={revealed}
-        onRevealNext={() => reveal(revealed + 1)}
-        chapter={activeView === "overview" ? 1 : 0}
-        chapters={[
-          { id: "cards", title: "As cartas da sua mesa" },
-          { id: "synthesis", title: session.isPaid ? "Leitura das cinco cartas" : "Prévia das três cartas" },
-        ]}
-        onSelectChapter={(idx) => handleNavigationSelect(idx === 1 ? "overview" : "card1")}
-        current={position}
-        highlightedPositions={activeView === "overview" ? [1, 2, 3, 4, 5].slice(0, session.isPaid ? 5 : 3) : [position]}
-        onSelectCard={selectFromTable}
-        chapterText={session.isPaid ? session.aiReading.generalSynthesis : preview}
-        cardNote={text ?? undefined}
-        onTogglePresentation={togglePresentation}
-        narrationReady={synthesisReady}
-        onStartNarration={() => { setSoundPreference(true); setNarration(true); setAutoplayChapter("synthesis"); }}
-        busy={revealingPosition !== null}
-      />
-    </div>
+      {synthesisReady && (
+        <details id={`oracle-live-${session.id}`} className={`oracle-live-panel ${viewMode === "immersive" ? "oracle-live-immersive" : ""}`}>
+          <summary>Converse sobre sua leitura</summary>
+          <LiveConsultation session={session} immersive={viewMode === "immersive"} />
+        </details>
+      )}
 
-  {synthesisReady && (
-    <details id={`oracle-live-${session.id}`} className={`oracle-live-panel ${viewMode === "immersive" ? "oracle-live-immersive" : ""}`}>
-      <summary>Converse sobre sua leitura</summary>
-      <LiveConsultation session={session} immersive={viewMode === "immersive"} />
-    </details>
-  )}
-
-    <CardRevealDialog
+      <CardRevealDialog
         card={enlargedPosition === null ? null : session.cardsDrawn[enlargedPosition - 1] ?? null}
         note={
           groupReady && enlargedPosition !== null

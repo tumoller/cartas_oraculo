@@ -87,6 +87,7 @@ export function ReadingAudio({
   const requesting = useRef(false);
   const attemptedPlay = useRef("");
   const userPaused = useRef(false);
+  const playWhenReady = useRef(false);
   const playerId = useId();
   const soundEnabled = useSoundPreference();
   useFollowListening();
@@ -99,7 +100,6 @@ export function ReadingAudio({
   useEffect(() => {
     onAutoPlayConsumedRef.current = onAutoPlayConsumed;
   });
-
 
   useEffect(() => {
     const element = player.current;
@@ -186,7 +186,7 @@ export function ReadingAudio({
     const timeout = window.setTimeout(() => setPollingPaused(true), remaining);
     const interval = window.setInterval(() => {
       refresh().catch(() => setError("Não foi possível atualizar a narração. Use Verificar narração para consultar novamente."));
-    }, 5000);
+    }, 3500);
 
     return () => {
       window.clearTimeout(timer);
@@ -201,8 +201,8 @@ export function ReadingAudio({
       setError(cause instanceof Error ? cause.message : "Não foi possível verificar a narração.")
     );
 
-  const requestAudio = useCallback(async () => {
-    if (requesting.current || soundEnabled !== true) return;
+  const requestAudio = useCallback(async (force = false) => {
+    if (requesting.current || (!force && soundEnabled !== true)) return;
     if (hasRequestedChapter(sessionId, chapter)) {
       try {
         const confirmed = await refresh();
@@ -266,20 +266,49 @@ export function ReadingAudio({
   const url = audio?.url ?? `${endpoint}/${encodeURIComponent(chapter)}`;
   const waiting = status === "pending" || status === "generating";
 
+  // Direct request from ConsultationImmersive button click
   useEffect(() => {
-    if (!autoPlay || !playbackReady || soundEnabled !== true || isLiveVoiceActive()) return;
+    const onImmersivePlay = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId: string; chapter: string }>).detail;
+      if (detail?.sessionId !== sessionId || detail.chapter !== chapter) return;
+      userPaused.current = false;
+      playWhenReady.current = true;
+      if (status === "ready" && player.current) {
+        playWhenReady.current = false;
+        void player.current.play().catch(() => {
+          setAutoplayBlocked(true);
+        });
+      } else if (status === "not_started" || status === "failed" || !status) {
+        void requestAudio(true);
+      } else {
+        void refresh();
+      }
+    };
+    window.addEventListener("oracle-immersive-play-request", onImmersivePlay);
+    return () => window.removeEventListener("oracle-immersive-play-request", onImmersivePlay);
+  }, [sessionId, chapter, status, requestAudio, refresh]);
+
+  useEffect(() => {
+    const shouldPlay = autoPlay || playWhenReady.current;
+    if (!shouldPlay || !playbackReady || soundEnabled !== true || isLiveVoiceActive()) return;
     if (userPaused.current) {
+      playWhenReady.current = false;
       onAutoPlayConsumedRef.current?.();
       return;
     }
-    if (status !== "ready" || !player.current || attemptedPlay.current === url) {
-      if (attemptedPlay.current === url) {
-        onAutoPlayConsumedRef.current?.();
+    if (status !== "ready" || !player.current) {
+      if ((status === "not_started" || status === "failed") && !requesting.current) {
+        void requestAudio(true);
       }
+      return;
+    }
+    if (attemptedPlay.current === url && !playWhenReady.current) {
+      onAutoPlayConsumedRef.current?.();
       return;
     }
 
     attemptedPlay.current = url;
+    playWhenReady.current = false;
     onAutoPlayConsumedRef.current?.();
 
     player.current
@@ -293,7 +322,7 @@ export function ReadingAudio({
         onOpenPresentation?.();
         setError("O navegador pediu um toque para iniciar a narração. Toque em Reproduzir narração.");
       });
-  }, [autoPlay, playbackReady, soundEnabled, status, url, onOpenPresentation]);
+  }, [autoPlay, playbackReady, soundEnabled, status, url, onOpenPresentation, requestAudio]);
 
   const resumeAudio = () => {
     if (!playbackReady || isLiveVoiceActive()) return;
@@ -441,7 +470,7 @@ export function ReadingAudio({
                   {(status === "not_started" || status === "failed") && (
                     <button
                       type="button"
-                      onClick={requestAudio}
+                      onClick={() => void requestAudio(true)}
                       disabled={busy}
                       className="min-h-12 flex-1 rounded-xl border border-amber-400/50 bg-amber-400/20 px-4 py-2.5 text-sm font-semibold text-amber-100 shadow-md hover:bg-amber-400/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 disabled:opacity-50"
                     >
@@ -602,7 +631,7 @@ export function ReadingAudio({
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={requestAudio}
+                onClick={() => void requestAudio(true)}
                 disabled={busy}
                 className="min-h-12 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 disabled:opacity-50"
               >
@@ -617,7 +646,7 @@ export function ReadingAudio({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={requestAudio}
+              onClick={() => void requestAudio(true)}
               disabled={busy}
               className="min-h-12 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 disabled:opacity-50"
             >

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import type { AiReading } from "@/types";
 
@@ -7,6 +8,28 @@ export const AUDIO_CHAPTERS = ["card1", "card2", "card3", "card4", "card5", "syn
 export type AudioChapter = string;
 
 type Reading = AiReading & { spread?: string; sections?: { id: string; title: string; positions: number[]; text: string }[] };
+
+let lastWorkerSpawnAttempt = 0;
+
+function ensureAudioWorkerRunning(): void {
+  const now = Date.now();
+  if (now - lastWorkerSpawnAttempt < 5000) return;
+  lastWorkerSpawnAttempt = now;
+  try {
+    const workerScript = path.join(process.cwd(), "scripts", "audio-worker.cjs");
+    if (!existsSync(workerScript)) return;
+    const child = spawn(process.execPath, [workerScript], {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: "ignore",
+      detached: true,
+      windowsHide: true,
+    });
+    child.unref();
+  } catch {
+    /* Se o ambiente bloquear subprocessos, o supervisor externo processa a fila */
+  }
+}
 
 export function audioChapters(reading: Reading): { chapter: string; title: string }[] {
   if (reading.spread === "line5") return [{ chapter: "synthesis", title: "Leitura das cinco cartas" }];
@@ -77,6 +100,7 @@ export async function enqueueAudio(job: ReturnType<typeof chapterJob>): Promise<
   } catch { /* no cached audio */ }
   try {
     await fs.access(paths.job);
+    ensureAudioWorkerRunning();
     return;
   } catch { /* first request */ }
   const temp = `${paths.job}.${randomUUID()}.tmp`;
@@ -88,6 +112,7 @@ export async function enqueueAudio(job: ReturnType<typeof chapterJob>): Promise<
   } finally {
     await fs.unlink(temp);
   }
+  ensureAudioWorkerRunning();
 }
 
 export async function audioStatus(job: ReturnType<typeof chapterJob>): Promise<"not_started" | "pending" | "generating" | "ready" | "failed"> {
@@ -103,6 +128,7 @@ export async function audioStatus(job: ReturnType<typeof chapterJob>): Promise<"
   } catch { /* state not yet written */ }
   try {
     await fs.access(paths.job);
+    ensureAudioWorkerRunning();
     return "pending";
   } catch { return "not_started"; }
 }

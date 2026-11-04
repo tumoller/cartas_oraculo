@@ -4,7 +4,7 @@ import "./LivePanel.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReadingSessionPayload } from "@/types";
-import { setSoundPreference } from "@/lib/sound-preference";
+import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
 import { canReadChapter, chapterHint, presentationSections, themeFocusId } from "@/lib/reading-chapters";
 import { useRevealTransition } from "@/lib/reveal-transition";
 import { ConsultationWorkspace } from "./ConsultationWorkspace";
@@ -35,6 +35,7 @@ export function SpreadBoard({
   onReset: () => void;
   initialNarration?: boolean;
 }) {
+  const soundPref = useSoundPreference();
   const [chapter, setChapter] = useState(0);
   const [revealed, setRevealed] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -45,7 +46,15 @@ export function SpreadBoard({
   const [showPresentation, setShowPresentation] = useState(false);
   const [presentationChapter, setPresentationChapter] = useState<string | null>(null);
   const [showLiveInvite, setShowLiveInvite] = useState(false);
-  const [viewMode, setViewMode] = useState<"normal" | "immersive">("normal");
+  const [viewMode, setViewMode] = useState<"normal" | "immersive">("immersive");
+
+  useEffect(() => {
+    if (narration === null && soundPref !== null) {
+      // Restore saved sound preference when opening saved readings.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNarration(soundPref);
+    }
+  }, [narration, soundPref]);
 
   useEffect(() => {
     try {
@@ -63,6 +72,7 @@ export function SpreadBoard({
       return next;
     });
   }, []);
+
   const [pendingNavigation, setPendingNavigation] = useState<{
     mode: "playing" | "unheard";
     type: "manual" | "row-completion";
@@ -97,7 +107,8 @@ export function SpreadBoard({
   const current = selected !== null && available.includes(selected) ? selected : available[0] ?? null;
   const card = current === null ? null : session.cardsDrawn.find((item) => item.position === current) ?? null;
   const note = allReady ? session.cardNotes?.find((item) => item.position === current)?.text : undefined;
-  const audioAvailable = narration === true;
+  const effectiveNarration = narration ?? soundPref;
+  const audioAvailable = effectiveNarration === true;
   const isEarlyRowSpread =
     (spread === "grand36" && session.methodVersion === "lenormand-grand36-v2") ||
     (spread === "box9" && session.methodVersion === "lenormand-box9-v2");
@@ -149,7 +160,7 @@ export function SpreadBoard({
     if (type === "row-completion") {
       if (targetIndex === chapter) {
         setActiveView("overview");
-        if (narration === true) {
+        if (effectiveNarration === true) {
           setAutoplayChapter(targetChapterId);
           setShowPresentation(true);
           setPresentationChapter(targetChapterId);
@@ -160,7 +171,7 @@ export function SpreadBoard({
       if (targetIndex === chapter) return;
     }
 
-    if (narration !== true) {
+    if (effectiveNarration !== true) {
       if (type === "row-completion") {
         setChapter(targetIndex);
         setActiveView("overview");
@@ -210,7 +221,7 @@ export function SpreadBoard({
     if (type === "row-completion") {
       setChapter(targetIndex);
       setActiveView("overview");
-      if (narration === true) {
+      if (effectiveNarration === true) {
         setAutoplayChapter(targetChapterId);
         setShowPresentation(true);
         setPresentationChapter(targetChapterId);
@@ -218,7 +229,7 @@ export function SpreadBoard({
     } else {
       applySelectChapter(targetIndex);
     }
-  }, [applySelectChapter, busy, chapter, chapterId, narration, session.id]);
+  }, [applySelectChapter, busy, chapter, chapterId, effectiveNarration, session.id]);
 
   const confirmChapterSwitch = () => {
     if (!pendingNavigation) return;
@@ -234,7 +245,7 @@ export function SpreadBoard({
     if (type === "row-completion") {
       setChapter(targetIndex);
       setActiveView("overview");
-      if (narration === true) {
+      if (effectiveNarration === true) {
         setAutoplayChapter(targetChapterId);
         setShowPresentation(true);
         setPresentationChapter(targetChapterId);
@@ -363,20 +374,20 @@ export function SpreadBoard({
       <button
         type="button"
         onClick={() => {
-          const enabled = narration !== true;
+          const enabled = effectiveNarration !== true;
           setNarration(enabled);
           setSoundPreference(enabled);
         }}
         className="mt-2 min-h-11 text-sm text-amber-200 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
       >
-        {narration === true ? "Seguir sem narração" : "Ouvir esta leitura"}
+        {effectiveNarration === true ? "Seguir sem narração" : "Ouvir esta leitura"}
       </button>
     </div>
   );
 
   const table = (
     <section className="min-w-0">
-      {narration === null && (
+      {effectiveNarration === null && (
         <NarrationChoice
           onChoose={(enabled) => {
             setNarration(enabled);
@@ -427,7 +438,7 @@ export function SpreadBoard({
 
   return (
     <>
-      <div style={{ display: viewMode === "normal" ? "block" : "none" }}>
+      <div className="w-full" style={{ display: viewMode === "normal" ? "block" : "none" }}>
         <ConsultationWorkspace
           session={session}
           table={table}
@@ -435,188 +446,192 @@ export function SpreadBoard({
         >
           <section ref={reading} tabIndex={-1} className="min-w-0 scroll-mt-24 focus:outline-hidden">
             <ConsultationReadingPane
-          title={synthesis ? "Sua leitura completa" : section?.title || "Sua leitura"}
-          subtitle={
-            referenceDescription ||
-            (synthesis ? "Todas as cartas da mesma mesa, conectadas em uma síntese." : chapterHint(spread, chapterId))
-          }
-          navigation={navigation}
-          card={card}
-          note={note}
-          revealed={current !== null}
-          revealing={revealingPosition === current}
-          readingLockedMessage={lockedMessage}
-          audio={
-            audioAvailable ? (
-              <ReadingAudio
-                key={chapterId}
-                sessionId={session.id}
-                chapter={chapterId}
-                title={synthesis ? "Resumo final" : section?.title}
-                persona={session.persona}
-                lineLabel={synthesis ? "Resumo final" : section?.title || "Leitura da linha"}
-                chapterText={chapterUnlocked ? (synthesis ? session.aiReading.generalSynthesis : section?.text) ?? undefined : undefined}
-                prepare={session.isPaid && narration === true && chapterUnlocked}
-                playbackReady={chapterUnlocked}
-                autoPlay={autoplayChapter === chapterId}
-                showPresentation={showPresentation && presentationChapter === chapterId}
-                onOpenPresentation={() => {
-                  setPresentationChapter(chapterId);
-                  setShowPresentation(true);
-                }}
-                onDismissPresentation={() => {
-                  setShowPresentation(false);
-                  setPresentationChapter(null);
-                }}
-                onAutoPlayConsumed={() => setAutoplayChapter(null)}
-                onEnded={() => {
-                  setShowPresentation(false);
-                  setPresentationChapter(null);
-                  if (isFinalChapter && session.isPaid && !liveInviteDismissed) {
-                    setShowLiveInvite(true);
-                  }
-                }}
-              />
-            ) : null
-          }
-          overview={
-            ready ? (
-              <div>
-                <div className="whitespace-pre-line">
-                  {synthesis ? session.aiReading.generalSynthesis : section?.text}
-                </div>
-                {isFinalChapter && session.isPaid && !liveInviteDismissed && (
-                  <button
-                    type="button"
-                    onClick={() => {
+              title={synthesis ? "Sua leitura completa" : section?.title || "Sua leitura"}
+              subtitle={
+                referenceDescription ||
+                (synthesis ? "Todas as cartas da mesma mesa, conectadas em uma síntese." : chapterHint(spread, chapterId))
+              }
+              navigation={navigation}
+              card={card}
+              note={note}
+              revealed={current !== null}
+              revealing={revealingPosition === current}
+              readingLockedMessage={lockedMessage}
+              audio={
+                audioAvailable ? (
+                  <ReadingAudio
+                    key={chapterId}
+                    sessionId={session.id}
+                    chapter={chapterId}
+                    title={synthesis ? "Resumo final" : section?.title}
+                    persona={session.persona}
+                    lineLabel={synthesis ? "Resumo final" : section?.title || "Leitura da linha"}
+                    chapterText={chapterUnlocked ? (synthesis ? session.aiReading.generalSynthesis : section?.text) ?? undefined : undefined}
+                    prepare={session.isPaid && effectiveNarration === true && chapterUnlocked}
+                    playbackReady={chapterUnlocked}
+                    autoPlay={autoplayChapter === chapterId}
+                    showPresentation={showPresentation && presentationChapter === chapterId}
+                    onOpenPresentation={() => {
+                      setPresentationChapter(chapterId);
+                      setShowPresentation(true);
+                    }}
+                    onDismissPresentation={() => {
                       setShowPresentation(false);
                       setPresentationChapter(null);
-                      setShowLiveInvite(true);
                     }}
-                    className="mt-4 min-h-12 rounded-xl border border-cyan-400/50 bg-cyan-950/40 px-5 py-2.5 text-sm font-semibold text-cyan-200 hover:bg-cyan-900/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                    onAutoPlayConsumed={() => setAutoplayChapter(null)}
+                    onEnded={() => {
+                      setShowPresentation(false);
+                      setPresentationChapter(null);
+                      if (isFinalChapter && session.isPaid && !liveInviteDismissed) {
+                        setShowLiveInvite(true);
+                      }
+                    }}
+                  />
+                ) : null
+              }
+              overview={
+                ready ? (
+                  <div>
+                    <div className="whitespace-pre-line">
+                      {synthesis ? session.aiReading.generalSynthesis : section?.text}
+                    </div>
+                    {isFinalChapter && session.isPaid && !liveInviteDismissed && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPresentation(false);
+                          setPresentationChapter(null);
+                          setShowLiveInvite(true);
+                        }}
+                        className="mt-4 min-h-12 rounded-xl border border-cyan-400/50 bg-cyan-950/40 px-5 py-2.5 text-sm font-semibold text-cyan-200 hover:bg-cyan-900/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                      >
+                        Concluir leitura
+                      </button>
+                    )}
+                  </div>
+                ) : undefined
+              }
+              overviewTitle={synthesis ? "Resumo final" : chapter < physicalRows ? "Leitura da linha" : "Leitura das relações"}
+              onPrevious={() => moveCard(-1)}
+              onNext={() => moveCard(1)}
+              canPrevious={!busy && current !== null && available.indexOf(current) > 0}
+              canNext={
+                !busy &&
+                current !== null &&
+                (available.indexOf(current) < available.length - 1 || (current === revealed && revealed < session.cardsDrawn.length))
+              }
+              onEnlarge={card && !busy ? () => setEnlargedPosition(card.position) : undefined}
+              revealAction={
+                revealed < session.cardsDrawn.length ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      document.getElementById(`oracle-deck-${session.id}`)?.scrollIntoView({
+                        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                        block: "center",
+                      })
+                    }
+                    className="min-h-12 rounded-xl border border-amber-300/50 px-4 py-3 text-sm font-semibold text-amber-100 disabled:opacity-50"
                   >
-                    Concluir leitura
+                    {busy ? "Revelando sua carta…" : "Voltar ao baralho"}
                   </button>
-                )}
-              </div>
-            ) : undefined
-          }
-          overviewTitle={synthesis ? "Resumo final" : chapter < physicalRows ? "Leitura da linha" : "Leitura das relações"}
-          onPrevious={() => moveCard(-1)}
-          onNext={() => moveCard(1)}
-          canPrevious={!busy && current !== null && available.indexOf(current) > 0}
-          canNext={
-            !busy &&
-            current !== null &&
-            (available.indexOf(current) < available.length - 1 || (current === revealed && revealed < session.cardsDrawn.length))
-          }
-          onEnlarge={card && !busy ? () => setEnlargedPosition(card.position) : undefined}
-          revealAction={
-            revealed < session.cardsDrawn.length ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  document.getElementById(`oracle-deck-${session.id}`)?.scrollIntoView({
-                    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-                    block: "center",
-                  })
-                }
-                className="min-h-12 rounded-xl border border-amber-300/50 px-4 py-3 text-sm font-semibold text-amber-100 disabled:opacity-50"
-              >
-                {busy ? "Revelando sua carta…" : "Voltar ao baralho"}
+                ) : !synthesis && allReady && spread !== "line3" ? (
+                  <button
+                    type="button"
+                    onClick={() => selectChapter(chapters.length)}
+                    className="min-h-12 rounded-xl border border-amber-300/50 px-4 text-sm text-amber-100"
+                  >
+                    Ver resumo final
+                  </button>
+                ) : undefined
+              }
+              activeView={activeView}
+              onViewChange={setActiveView}
+            />
+
+            <div className="flex flex-wrap justify-center gap-5 py-6 text-sm text-slate-400">
+              {revealed === session.cardsDrawn.length && (
+                <a href={`/api/reading/${session.id}/export`} download className="underline underline-offset-4">
+                  Baixar consulta em texto
+                </a>
+              )}
+              <button type="button" onClick={onReset} className="underline underline-offset-4">
+                Voltar às consultas
               </button>
-            ) : !synthesis && allReady && spread !== "line3" ? (
-              <button
-                type="button"
-                onClick={() => selectChapter(chapters.length)}
-                className="min-h-12 rounded-xl border border-amber-300/50 px-4 text-sm text-amber-100"
-              >
-                Ver resumo final
-              </button>
-            ) : undefined
-          }
-          activeView={activeView}
-          onViewChange={setActiveView}
+            </div>
+          </section>
+        </ConsultationWorkspace>
+      </div>
+
+      <div className="w-full" style={{ display: viewMode === "immersive" ? "block" : "none" }}>
+        <ConsultationImmersive
+          session={session}
+          revealed={revealed}
+          onRevealNext={revealNext}
+          chapter={chapter}
+          chapters={chapters}
+          onSelectChapter={selectChapter}
+          current={current}
+          highlightedPositions={positions}
+          onSelectCard={showCard}
+          chapterText={chapterUnlocked ? (synthesis ? session.aiReading.generalSynthesis : section?.text) : null}
+          cardNote={note}
+          onTogglePresentation={togglePresentation}
+          narrationReady={ready && session.isPaid}
+          onStartNarration={() => {
+            setSoundPreference(true);
+            setNarration(true);
+            setAutoplayChapter(chapterId);
+          }}
+          busy={busy}
         />
+      </div>
 
-        <div className="flex flex-wrap justify-center gap-5 py-6 text-sm text-slate-400">
-          {revealed === session.cardsDrawn.length && (
-            <a href={`/api/reading/${session.id}/export`} download className="underline underline-offset-4">
-              Baixar consulta em texto
-            </a>
-          )}
-          <button type="button" onClick={onReset} className="underline underline-offset-4">
-            Voltar às consultas
-          </button>
-        </div>
-      </section>
-    </ConsultationWorkspace>
-  </div>
+      {allReady && (
+        <details id={`oracle-live-${session.id}`} className={`oracle-live-panel ${viewMode === "immersive" ? "oracle-live-immersive" : ""}`}>
+          <summary>Converse sobre sua leitura</summary>
+          <LiveConsultation session={session} immersive={viewMode === "immersive"} />
+        </details>
+      )}
 
-  <div style={{ display: viewMode === "immersive" ? "block" : "none" }}>
-    <ConsultationImmersive
-      session={session}
-      revealed={revealed}
-      onRevealNext={revealNext}
-      chapter={chapter}
-      chapters={chapters}
-      onSelectChapter={selectChapter}
-      current={current}
-      highlightedPositions={positions}
-      onSelectCard={showCard}
-      chapterText={synthesis ? session.aiReading.generalSynthesis : section?.text}
-      cardNote={note}
-      onTogglePresentation={togglePresentation}
-      narrationReady={ready && session.isPaid}
-      onStartNarration={() => { setSoundPreference(true); setNarration(true); setAutoplayChapter(chapterId); }}
-      busy={busy}
-    />
-  </div>
-
-  {allReady && (
-    <details id={`oracle-live-${session.id}`} className={`oracle-live-panel ${viewMode === "immersive" ? "oracle-live-immersive" : ""}`}>
-      <summary>Converse sobre sua leitura</summary>
-      <LiveConsultation session={session} immersive={viewMode === "immersive"} />
-    </details>
-  )}
-
-  <CardRevealDialog
-    card={enlargedPosition === null ? null : session.cardsDrawn.find((item) => item.position === enlargedPosition) ?? null}
-    note={allReady ? session.cardNotes?.find((item) => item.position === enlargedPosition)?.text : undefined}
-    onClose={() => setEnlargedPosition(null)}
-  />
-  <LiveInviteDialog
-    isOpen={showLiveInvite}
-    persona={session.persona}
-    onAccept={() => {
-      pauseCurrentVoice();
-      setShowLiveInvite(false);
-      setLiveInviteDismissed(true);
-      const details = document.getElementById(`oracle-live-${session.id}`)?.closest("details");
-      if (details) details.open = true;
-      document.getElementById(`oracle-live-${session.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      window.dispatchEvent(
-        new CustomEvent("oracle-start-live-conversation", {
-          detail: { sessionId: session.id, requestMic: true },
-        })
-      );
-    }}
-    onDismiss={() => {
-      pauseCurrentVoice();
-      setShowLiveInvite(false);
-      setLiveInviteDismissed(true);
-      window.requestAnimationFrame(() => {
-        reading.current?.focus({ preventScroll: true });
-      });
-    }}
-  />
-  <ChapterSwitchDialog
-    isOpen={Boolean(pendingNavigation)}
-    mode={pendingNavigation?.mode}
-    onConfirm={confirmChapterSwitch}
-    onCancel={cancelChapterSwitch}
-  />
-</>
-);
+      <CardRevealDialog
+        card={enlargedPosition === null ? null : session.cardsDrawn.find((item) => item.position === enlargedPosition) ?? null}
+        note={allReady ? session.cardNotes?.find((item) => item.position === enlargedPosition)?.text : undefined}
+        onClose={() => setEnlargedPosition(null)}
+      />
+      <LiveInviteDialog
+        isOpen={showLiveInvite}
+        persona={session.persona}
+        onAccept={() => {
+          pauseCurrentVoice();
+          setShowLiveInvite(false);
+          setLiveInviteDismissed(true);
+          const details = document.getElementById(`oracle-live-${session.id}`)?.closest("details");
+          if (details) details.open = true;
+          document.getElementById(`oracle-live-${session.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+          window.dispatchEvent(
+            new CustomEvent("oracle-start-live-conversation", {
+              detail: { sessionId: session.id, requestMic: true },
+            })
+          );
+        }}
+        onDismiss={() => {
+          pauseCurrentVoice();
+          setShowLiveInvite(false);
+          setLiveInviteDismissed(true);
+          window.requestAnimationFrame(() => {
+            reading.current?.focus({ preventScroll: true });
+          });
+        }}
+      />
+      <ChapterSwitchDialog
+        isOpen={Boolean(pendingNavigation)}
+        mode={pendingNavigation?.mode}
+        onConfirm={confirmChapterSwitch}
+        onCancel={cancelChapterSwitch}
+      />
+    </>
+  );
 }

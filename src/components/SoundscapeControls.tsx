@@ -101,20 +101,81 @@ export function SoundscapeControls({ persona, sessionId }: { persona: string; se
     setAmbientOn(!ambientOn);
   };
 
-  return <div className="mt-4 space-y-3 border-t border-white/10 pt-3 text-sm">
-    <label className="flex min-h-12 items-center gap-2"><input type="checkbox" checked={follow} onChange={(event) => {
-      setFollowListening(event.target.checked);
-      const current = getVoiceState();
-      if (event.target.checked && current?.active && current.kind === "chapter") window.dispatchEvent(new CustomEvent("oracle-chapter-focus", { detail: { sessionId, chapter: current.chapter } }));
-    }} className="size-4 accent-amber-300" />Acompanhar ouvindo</label>
-    <label className="block">Volume da voz
-      <input type="range" min="0" max="1" step="0.05" value={voiceVolume} onChange={(event) => { const value = Number(event.target.value); updateVoiceVolume(value); setVoiceVolume(value); }} className="mt-2 block h-8 w-full accent-amber-300" />
-    </label>
-    {ambientUrl && <>
-      <button type="button" onClick={toggleAmbient} disabled={sound !== true} aria-pressed={ambientOn} className="min-h-12 rounded-full border border-white/30 px-3 disabled:opacity-40">{ambientOn ? "Desligar ambiente" : "Ouvir ambiente"}</button>
-      <label className="block">Volume do ambiente<input type="range" min="0" max="0.5" step="0.025" value={ambientVolume} onChange={(event) => setAmbientVolume(Number(event.target.value))} className="mt-2 block h-8 w-full accent-amber-300" /></label>
-    </>}
-    {Object.values(soundscapeAssets.effects).some(Boolean) && <button type="button" aria-pressed={effectsOn} onClick={() => setEffectsOn(!effectsOn)} className="min-h-12 rounded-full border border-white/30 px-3">{effectsOn ? "Silenciar cartas" : "Ouvir cartas"}</button>}
-    {unavailable && <p role="status" className="text-xs text-slate-300">O som do ambiente não está disponível agora. Sua leitura continua normalmente.</p>}
-  </div>;
+  return (
+    <div className="space-y-3 text-sm">
+      <label className="flex min-h-10 cursor-pointer items-center gap-2.5 text-slate-100">
+        <input
+          type="checkbox"
+          checked={follow}
+          onChange={(event) => {
+            setFollowListening(event.target.checked);
+            const current = getVoiceState();
+            if (event.target.checked && current?.active && current.kind === "chapter") {
+              window.dispatchEvent(
+                new CustomEvent("oracle-chapter-focus", { detail: { sessionId, chapter: current.chapter } })
+              );
+            }
+          }}
+          className="size-4 accent-amber-400"
+        />
+        <span>Acompanhar ouvindo</span>
+      </label>
+      <label className="block text-slate-200">
+        <span>Volume da voz</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={voiceVolume}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            updateVoiceVolume(value);
+            setVoiceVolume(value);
+          }}
+          className="mt-1.5 block h-7 w-full cursor-pointer accent-amber-400"
+        />
+      </label>
+      {ambientUrl && (
+        <>
+          <button
+            type="button"
+            onClick={toggleAmbient}
+            disabled={sound !== true}
+            aria-pressed={ambientOn}
+            className="min-h-10 rounded-full border border-white/30 px-3.5 text-xs disabled:opacity-40"
+          >
+            {ambientOn ? "Desligar ambiente" : "Ouvir ambiente"}
+          </button>
+          <label className="block text-slate-200">
+            <span>Volume do ambiente</span>
+            <input
+              type="range"
+              min="0"
+              max="0.5"
+              step="0.025"
+              value={ambientVolume}
+              onChange={(event) => setAmbientVolume(Number(event.target.value))}
+              className="mt-1.5 block h-7 w-full cursor-pointer accent-amber-400"
+            />
+          </label>
+        </>
+      )}
+      {Object.values(soundscapeAssets.effects).some(Boolean) && (
+        <button
+          type="button"
+          aria-pressed={effectsOn}
+          onClick={() => setEffectsOn(!effectsOn)}
+          className="min-h-10 rounded-full border border-white/30 px-3.5 text-xs"
+        >
+          {effectsOn ? "Silenciar cartas" : "Ouvir cartas"}
+        </button>
+      )}
+      {unavailable && (
+        <p role="status" className="text-xs text-slate-300">
+          O som do ambiente não está disponível agora. Sua leitura continua normalmente.
+        </p>
+      )}
+    </div>
+  );
 }

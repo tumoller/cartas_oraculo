@@ -1,6 +1,76 @@
-.oracle-live-panel { margin: 1rem auto; padding: .75rem; max-width: 900px; border: 1px solid #b5966d66; border-radius: 16px; background: #180e17; color: #fff0d8; }
-.oracle-live-panel > summary { cursor: pointer; padding: .5rem; font-weight: 600; }
-.oracle-live-immersive[open] > section { max-height: 46dvh; }
-.oracle-live-immersive { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; margin: 0; max-width: none; max-height: 55dvh; overflow-y: auto; padding-bottom: max(.75rem, env(safe-area-inset-bottom)); background: linear-gradient(transparent, #180e17 18%); border: 0; border-radius: 0; }
-body:has(.oracle-live-immersive[open]) [data-immersive-table], body:has(.oracle-live-immersive[open]) [data-immersive-focus] { visibility: hidden; pointer-events: none; }
-@media (min-width: 1024px) { .oracle-live-immersive { left: 50%; max-height: calc(100dvh - 90px); } }
+.oracle-live-panel {
+  margin: 1rem auto;
+  padding: 0.75rem;
+  max-width: 900px;
+  border: 1px solid #b5966d66;
+  border-radius: 16px;
+  background: #180e17;
+  color: #fff0d8;
+}
+
+.oracle-live-panel > summary {
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.oracle-live-immersive:not([open]) {
+  position: fixed;
+  z-index: 30;
+  bottom: max(0.6rem, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0;
+  width: auto;
+  max-width: calc(100vw - 2rem);
+  background: rgba(34, 19, 29, 0.94);
+  border: 1px solid #e4bb69;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75);
+}
+
+.oracle-live-immersive:not([open]) > summary {
+  padding: 0.45rem 1.15rem;
+  font-size: 0.82rem;
+  color: #fff0d8;
+  white-space: nowrap;
+}
+
+.oracle-live-immersive[open] {
+  position: fixed;
+  z-index: 30;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  max-width: none;
+  max-height: 55dvh;
+  overflow-y: auto;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, #180e17 18%);
+  border: 0;
+  border-radius: 0;
+}
+
+.oracle-live-immersive[open] > section {
+  max-height: 46dvh;
+}
+
+body:has(.oracle-live-immersive[open]) [data-immersive-table],
+body:has(.oracle-live-immersive[open]) [data-immersive-focus] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .oracle-live-immersive:not([open]) {
+    left: 73%;
+    bottom: 1rem;
+  }
+  .oracle-live-immersive[open] {
+    left: 50%;
+    max-height: calc(100dvh - 90px);
+  }
+}

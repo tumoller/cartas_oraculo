@@ -3,7 +3,7 @@
 .scene {
   position: relative;
   height: 100svh;
-  min-height: 600px;
+  min-height: 620px;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -15,31 +15,129 @@
   -webkit-user-select: none;
 }
 
-/* The same scene is used for every spread. Expressions are independent of audio. */
-.portrait { position:absolute; inset:0; pointer-events:none; z-index:1; background:#180e17; animation:breathe 18s ease-in-out infinite alternate; transform-origin:center 25%; }
-.sceneBase, .sceneExpression { position:absolute; inset:0; background-position:center top; background-size:auto 100%; background-repeat:no-repeat; }
-.sceneBase { background-image:var(--scene-url); }
-.sceneExpression { opacity:0; }
-.sceneConcentrating { background-image:var(--scene-concentrating); animation:expression 16s ease-in-out infinite; }
-.sceneExpressing { background-image:var(--scene-expressing); animation:expression 18s ease-in-out -9s infinite; }
-.sceneShade { position:absolute; inset:0; z-index:2; pointer-events:none; background:linear-gradient(to bottom,rgba(24,14,23,.15),transparent 30%,rgba(24,14,23,.45) 62%,#180e17 95%); }
-@keyframes breathe { from { transform:scale(1); } to { transform:scale(1.02); } }
-@keyframes expression { 0%,35%,100% { opacity:0; } 48%,70% { opacity:1; } }
-.halo { position:absolute; inset:0; pointer-events:none; z-index:3; background:radial-gradient(circle at 50% 25%,rgba(228,187,105,.18),transparent 60%); opacity:0; transition:opacity .25s ease,transform .25s ease; }
-@media (min-width:1024px) {
-  .portrait { right:50%; mask-image:linear-gradient(to right,#000 85%,transparent 100%); }
-  .sceneShade { background:linear-gradient(to right,transparent 25%,rgba(24,14,23,.25) 45%,#180e17 60%); }
+/* The same scene is used for every spread. Expressions use fast transitions without overlapping ghosts. */
+.portrait {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: #180e17;
+  animation: breathe 16s ease-in-out infinite alternate;
+  transform-origin: center 22%;
+}
+
+.sceneBase,
+.sceneExpression {
+  position: absolute;
+  inset: 0;
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.sceneBase {
+  background-image: var(--scene-url);
+}
+
+.sceneExpression {
+  opacity: 0;
+  will-change: opacity;
+  transition: opacity 0.35s ease;
+}
+
+.sceneConcentrating {
+  background-image: var(--scene-concentrating);
+  animation: expressionConcentrate 12s ease-in-out infinite;
+}
+
+.sceneExpressing {
+  background-image: var(--scene-expressing);
+  animation: expressionSpeak 12s ease-in-out infinite;
+}
+
+/* Quando está preparando a narração, fecha os olhos em concentração e abre ao iniciar a voz */
+.forceConcentrating {
+  animation: none !important;
+  opacity: 1 !important;
+  transition: opacity 0.45s ease-in-out !important;
+}
+
+.suppressExpression {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+.sceneShade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(24, 14, 23, 0.14) 0%,
+    transparent 34%,
+    rgba(24, 14, 23, 0.35) 56%,
+    rgba(24, 14, 23, 0.88) 80%,
+    #180e17 96%
+  );
+}
+
+@keyframes breathe {
+  from { transform: scale(1); }
+  to { transform: scale(1.018); }
+}
+
+/* Transição rápida (~0.3s) para evitar sobreposição fantasma de olhos abertos/fechados */
+@keyframes expressionConcentrate {
+  0%, 36%, 52%, 100% { opacity: 0; }
+  38.5%, 49.5% { opacity: 1; }
+}
+
+@keyframes expressionSpeak {
+  0%, 72%, 88%, 100% { opacity: 0; }
+  74.5%, 85.5% { opacity: 1; }
+}
+
+.halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: radial-gradient(circle at 50% 25%, rgba(228, 187, 105, 0.22), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+@media (min-width: 1024px) {
+  .portrait {
+    right: 44%;
+    mask-image: linear-gradient(to right, #000 76%, transparent 100%);
+  }
+  .sceneBase,
+  .sceneExpression {
+    background-size: auto 100%;
+    background-position: center top;
+  }
+  .sceneShade {
+    background: linear-gradient(
+      to right,
+      transparent 22%,
+      rgba(24, 14, 23, 0.28) 44%,
+      rgba(24, 14, 23, 0.94) 58%,
+      #180e17 100%
+    );
+  }
 }
 
 /* Top Navigation Bar */
 .top {
   position: relative;
-  z-index: 10;
+  z-index: 25;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px clamp(14px, 3vw, 32px);
-  gap: 10px;
+  padding: 12px clamp(14px, 3vw, 36px);
+  gap: 12px;
 }
 
 .topTitle small {
@@ -54,7 +152,7 @@
 
 .topTitle h1 {
   font-family: Georgia, serif;
-  font-size: clamp(15px, 2vw, 20px);
+  font-size: clamp(15px, 2vw, 22px);
   color: #fff0d8;
   margin-top: 1px;
   text-shadow: 0 2px 8px rgba(0,0,0,0.9);
@@ -63,14 +161,14 @@
 .topActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.btnHelp, .btnToggleView {
-  background: rgba(38,24,32,0.85);
+.btnHelp {
+  background: rgba(38, 24, 32, 0.88);
   border: 1px solid #b5966d;
-  border-radius: 18px;
-  padding: 5px 12px;
+  border-radius: 999px;
+  padding: 7px 16px;
   font-size: 13px;
   color: #fff0d8;
   transition: all 0.15s;
@@ -82,14 +180,36 @@
   justify-content: center;
 }
 
-.btnHelp:hover, .btnToggleView:hover {
+.btnHelp:hover {
   border-color: #f5d889;
-  background: rgba(56,36,48,0.95);
+  background: rgba(56, 36, 48, 0.95);
 }
 
+/* Botão Visão normal destacado em tom azul-celeste/índigo (contrastando com o vinho, igual ao botão da visão normal) */
 .btnToggleView {
-  border-color: rgba(228, 187, 105, 0.7);
-  background: rgba(64, 38, 52, 0.85);
+  background: linear-gradient(135deg, rgba(28, 54, 94, 0.94), rgba(15, 25, 48, 0.96));
+  border: 1.5px solid #60a5fa;
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0f2fe;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.32);
+  transition: all 0.18s;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  cursor: pointer;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btnToggleView:hover {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, rgba(37, 70, 120, 0.98), rgba(22, 36, 68, 0.98));
+  box-shadow: 0 0 22px rgba(96, 165, 250, 0.5);
+  transform: translateY(-1px);
 }
 
 /* Bottom Table Region */
@@ -101,79 +221,147 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 4px 12px 8px;
-  background: linear-gradient(to top, rgba(24,14,23,0.88) 0%, rgba(24,14,23,0.65) 55%, rgba(24,14,23,0.18) 85%, transparent 100%);
+  padding: 4px 12px 10px;
+  gap: 5px;
+  background: linear-gradient(
+    to top,
+    rgba(24,14,23,0.96) 0%,
+    rgba(24,14,23,0.82) 45%,
+    rgba(24,14,23,0.22) 82%,
+    transparent 100%
+  );
+}
+
+/* No celular, esconde a mesa completa quando o foco da narração está aberto; no desktop, mantém a mesa visível à direita! */
+@media (max-width: 1023px) {
+  .hiddenOnMobileFocus {
+    display: none !important;
+  }
 }
 
 @media (min-width: 1024px) {
   .scene .bottom {
     margin-left: auto;
-    width: 50%;
+    margin-top: auto;
+    margin-bottom: auto;
+    width: 54%;
     max-width: none;
+    height: calc(100svh - 68px);
+    justify-content: center;
     align-self: flex-end;
-    padding: 6px 16px 8px;
-    background: linear-gradient(to top, rgba(24,14,23,0.95) 0%, rgba(24,14,23,0.85) 60%, transparent 100%);
+    padding: 8px 28px 16px;
+    gap: 12px;
+    background: none;
   }
 }
 
-.readingMeta {
-  margin-bottom: 2px;
-}
-
-.eyebrow {
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: #efcd8e;
-  font-weight: 600;
-  display: block;
-}
-
-.title {
-  font-family: Georgia, serif;
-  font-size: clamp(15px, 2vw, 20px);
-  margin: 1px 0;
-  color: #fff0d8;
-  text-shadow: 0 2px 6px rgba(0,0,0,0.9);
-}
-
-.subtitle {
-  font-size: clamp(11px, 1.2vw, 12px);
-  color: #dfcdb8;
-  margin-bottom: 3px;
-}
-
-/* Cards Area */
+/* Cards Area - positioned over the table surface below the face */
 .cards {
   display: grid;
   justify-content: center;
   align-items: center;
-  margin: 3px auto;
+  margin: 0 auto 2px;
   width: 100%;
   transition: all 0.2s;
 }
 
 .grid3 {
   grid-template-columns: repeat(3, 1fr);
-  max-width: min(300px, 76vw);
+  max-width: min(290px, 78vw);
   gap: 8px;
 }
 
 .grid5 {
   grid-template-columns: repeat(5, 1fr);
-  max-width: min(460px, 88vw);
+  max-width: min(360px, 92vw);
   gap: 6px;
 }
 
 .grid9 {
   grid-template-columns: repeat(3, 1fr);
-  max-width: min(216px, 62vw);
+  max-width: min(210px, 60vw);
   gap: 5px;
 }
 
 .grid36 {
   grid-template-columns: repeat(9, 1fr);
-  max-width: 700px;
+  max-width: 720px;
   gap: 4px;
+}
+
+@media (min-width: 1024px) {
+  .grid3 {
+    max-width: min(410px, 36vw);
+    gap: 14px;
+  }
+  .grid5 {
+    max-width: min(550px, 43vw);
+    gap: 12px;
+  }
+  .grid9 {
+    max-width: min(300px, 26vw);
+    gap: 9px;
+  }
+  .grid36 {
+    max-width: min(740px, 47vw);
+    gap: 5px;
+  }
+}
+
+/* Footer cluster: reading meta + wine pill controls + deck/avatar dock */
+.footerPanel {
+  width: 100%;
+  max-width: 780px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 6px;
+  border-radius: 20px;
+  background: rgba(26, 15, 24, 0.86);
+  border: 1px solid rgba(216, 176, 107, 0.34);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+@media (min-width: 1024px) {
+  .footerPanel {
+    padding: 12px 20px 10px;
+    gap: 8px;
+    background: rgba(28, 16, 26, 0.9);
+    border-color: rgba(216, 176, 107, 0.42);
+  }
+}
+
+.readingMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #efcd8e;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.title {
+  font-family: Georgia, serif;
+  font-size: clamp(14px, 1.6vw, 18px);
+  margin: 0;
+  color: #fff0d8;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+}
+
+.subtitle {
+  font-size: clamp(11px, 1.1vw, 12px);
+  color: #dfcdb8;
+  margin: 0;
 }
 
 /* Card Slot (button) */
@@ -191,16 +379,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.2s, filter 0.2s;
+  transition: opacity 0.2s, filter 0.2s, transform 0.15s;
 }
 
 .cardSlot.closed {
   cursor: default;
-  border: 1px dashed rgba(216,176,107,0.45);
-  background: rgba(24,14,23,0.35);
+  border: 1px dashed rgba(216,176,107,0.5);
+  background: rgba(24,14,23,0.45);
   backdrop-filter: blur(2px);
-  color: rgba(248,234,208,0.75);
-  font-size: clamp(11px, 1.6vw, 14px);
+  color: rgba(248,234,208,0.85);
+  font-size: clamp(11px, 1.5vw, 14px);
   font-weight: 600;
 }
 
@@ -209,6 +397,10 @@
   background: #170f18;
   border-radius: 6px;
   overflow: hidden;
+}
+
+.cardSlot.opened:hover {
+  transform: translateY(-2px);
 }
 
 .cardSlot.opened img {
@@ -233,11 +425,11 @@
 .cardSlot.activeLine.closed {
   border-color: #f5d889;
   color: #fff0d8;
-  box-shadow: 0 0 6px rgba(245,216,137,0.25);
+  box-shadow: 0 0 8px rgba(245,216,137,0.3);
 }
 
 .cardSlot.dimmed {
-  opacity: 0.35;
+  opacity: 0.38;
   filter: brightness(0.75);
 }
 
@@ -251,133 +443,227 @@
   animation: flipCardY 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }
 
-/* Line tabs and controls */
+/* Line tabs and controls (wine bar with rounded buttons) */
 .controlsRow {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin: 3px auto;
+  margin: 2px auto;
 }
 
 .lineTabs {
   display: flex;
-  gap: 3px;
-  background: rgba(28,17,24,0.75);
-  padding: 2px;
-  border-radius: 16px;
-  border: 1px solid rgba(181,150,109,0.35);
+  gap: 4px;
+  background: rgba(54, 24, 36, 0.92);
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 176, 107, 0.45);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 
 .lineTab {
   background: transparent;
-  border: none;
-  padding: 3px 9px;
+  border: 1px solid transparent;
+  padding: 5px 13px;
   font-size: 12px;
-  border-radius: 14px;
-  color: #dfcdb8;
+  border-radius: 999px;
+  color: #e6d5c3;
   cursor: pointer;
   transition: all 0.15s;
+  min-height: 32px;
 }
 
 .lineTab.active {
-  background: #68482f;
+  background: linear-gradient(135deg, #7c4d32, #5a3424);
   color: #fff0d8;
-  border: 1px solid #e4bb69;
+  border: 1px solid #f5d889;
   font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45);
 }
 
 .lineTab:hover:not(.active) {
-  background: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.08);
   color: #fff;
 }
 
 .actionBtn {
-  background: rgba(38,24,32,0.85);
-  border: 1px solid #b5966d;
-  border-radius: 16px;
-  padding: 4px 12px;
+  background: rgba(54, 26, 38, 0.92);
+  border: 1px solid #c8a26e;
+  border-radius: 999px;
+  padding: 6px 15px;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   color: #fff0d8;
-  transition: border-color 0.15s;
+  transition: all 0.15s;
   min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 
-.actionBtn:hover {
+.actionBtn:hover:not(:disabled) {
   border-color: #f5d889;
+  background: rgba(74, 36, 52, 0.95);
+}
+
+.actionBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Botão de Ouvir / Preparando Narração com muito mais destaque */
+.listenBtn {
+  background: linear-gradient(135deg, #9a6328, #6b3f16);
+  border: 1.5px solid #f5d889;
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff8e7;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-shadow: 0 0 16px rgba(245, 216, 137, 0.35), 0 4px 10px rgba(0, 0, 0, 0.5);
+  transition: all 0.18s;
+}
+
+.listenBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #b57632, #824d1c);
+  border-color: #ffebac;
+  box-shadow: 0 0 24px rgba(245, 216, 137, 0.55), 0 4px 12px rgba(0, 0, 0, 0.6);
+  transform: translateY(-1px);
+}
+
+.listenBtn:disabled {
+  background: rgba(44, 24, 34, 0.75);
+  border: 1px dashed rgba(200, 162, 110, 0.5);
+  color: rgba(255, 240, 216, 0.65);
+  box-shadow: none;
+  font-weight: 500;
+  cursor: default;
+}
+
+.listenBtnPreparing {
+  background: linear-gradient(135deg, #164e63, #0f2942);
+  border-color: #67e8f9;
+  color: #ecfeff;
+  animation: preparingBtnPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes preparingBtnPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(103, 232, 249, 0.35); }
+  50% { box-shadow: 0 0 24px rgba(103, 232, 249, 0.75); }
 }
 
 /* Bottom dock */
 .bottomDock {
   width: 100%;
-  max-width: 900px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 3px 6px 0;
+  gap: 12px;
+  padding: 2px 6px 0;
 }
 
 .deckCluster {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   text-align: left;
 }
 
+/* Baralho ampliado e com Glow/Neon Dourado Pulsante quando há cartas para abrir */
+@keyframes deckNeonPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 12px rgba(245, 216, 137, 0.55),
+      0 0 24px rgba(230, 162, 60, 0.3),
+      3px 3px 0 #4a2839,
+      6px 6px 0 #26121d;
+    border-color: #f5d889;
+  }
+  50% {
+    box-shadow:
+      0 0 22px rgba(255, 230, 150, 0.95),
+      0 0 42px rgba(245, 175, 55, 0.6),
+      3px 3px 0 #4a2839,
+      6px 6px 0 #26121d;
+    border-color: #fff2b8;
+  }
+}
+
 .deckStack {
-  width: clamp(44px, 5.5vw, 52px);
+  width: 58px;
   aspect-ratio: 768 / 1376;
   background:
-    radial-gradient(ellipse at center, rgba(140,70,95,0.35) 0%, rgba(25,14,24,0.9) 80%),
-    repeating-linear-gradient(45deg, rgba(230,189,120,0.04) 0px, rgba(230,189,120,0.04) 2px, transparent 2px, transparent 6px),
-    linear-gradient(145deg, #5c3547, #1e111d);
-  border: 2px double #e6bd78;
-  border-radius: 6px;
-  box-shadow: 2px 2px 0 #4a2839, 4px 4px 0 #331926, 6px 6px 0 #1b0e16, 7px 8px 14px rgba(0,0,0,0.65);
+    radial-gradient(ellipse at center, rgba(165, 85, 115, 0.45) 0%, rgba(25, 14, 24, 0.94) 78%),
+    repeating-linear-gradient(45deg, rgba(230,189,120,0.06) 0px, rgba(230,189,120,0.06) 2px, transparent 2px, transparent 6px),
+    linear-gradient(145deg, #683b50, #1e111d);
+  border: 2px solid #f5d889;
+  border-radius: 8px;
   cursor: pointer;
   position: relative;
   padding: 0;
   flex-shrink: 0;
-  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+  display: grid;
+  place-items: center;
+  color: #f5d889;
+  font-size: 20px;
+  animation: deckNeonPulse 1.8s ease-in-out infinite;
+  transition: transform 0.18s, opacity 0.2s;
+}
+
+@media (min-width: 1024px) {
+  .deckStack {
+    width: 78px;
+    border-radius: 10px;
+    font-size: 26px;
+  }
 }
 
 .deckStack::before {
   content: '';
   position: absolute;
-  inset: 3px;
-  border: 1px solid rgba(230,189,120,0.4);
-  border-radius: 4px;
+  inset: 4px;
+  border: 1px solid rgba(245, 216, 137, 0.55);
+  border-radius: 5px;
   pointer-events: none;
 }
 
 .deckStack::after {
   content: '';
   position: absolute;
-  inset: 6px;
-  border: 1px dashed rgba(230,189,120,0.22);
-  border-radius: 2px;
+  inset: 8px;
+  border: 1px dashed rgba(245, 216, 137, 0.3);
+  border-radius: 3px;
   pointer-events: none;
 }
 
+.deckSparkle {
+  text-shadow: 0 0 10px rgba(255, 230, 150, 0.9);
+  animation: pulseDotAnim 1.8s ease-in-out infinite;
+}
+
 .deckStack:hover:not(.completed) {
-  transform: translateY(-2px);
-  box-shadow: 2px 4px 0 #4a2839, 4px 6px 0 #331926, 6px 8px 0 #1b0e16, 8px 12px 18px rgba(0,0,0,0.75);
+  transform: translateY(-3px) scale(1.03);
 }
 
 .deckStack:active:not(.completed) {
-  transform: translateY(2px);
-  box-shadow: 1px 1px 0 #4a2839, 2px 2px 0 #331926, 3px 3px 0 #1b0e16, 4px 4px 8px rgba(0,0,0,0.5);
+  transform: translateY(1px) scale(0.98);
 }
 
 .deckStack.completed {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
+  animation: none;
+  border-color: #9c8260;
   box-shadow: 2px 2px 0 #1b0e16, 4px 4px 8px rgba(0,0,0,0.4);
   transform: none;
 }
@@ -385,19 +671,36 @@
 .deckMeta {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
+}
+
+.deckBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(245, 216, 137, 0.18);
+  border: 1px solid rgba(245, 216, 137, 0.65);
+  color: #ffebac;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 0 12px rgba(245, 216, 137, 0.25);
 }
 
 .deckPrompt {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: clamp(13px, 1.3vw, 15px);
+  font-weight: 700;
   color: #fff0d8;
   line-height: 1.2;
 }
 
 .deckCount {
-  font-size: 11px;
-  color: #cbb49c;
+  font-size: 12px;
+  color: #dfcdb8;
   line-height: 1.2;
 }
 
@@ -410,46 +713,76 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   background: none;
   border: none;
   padding: 2px;
   cursor: pointer;
-  color: #dfcdb8;
+  color: #fff0d8;
 }
 
 .avatarBtn img {
-  width: 40px;
-  height: 40px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   object-fit: cover;
-  object-position: center 20%;
-  border: 2px solid #d8b06b;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.5);
-  transition: transform 0.15s, border-color 0.15s;
+  object-position: center 18%;
+  border: 2.5px solid #e6bd78;
+  box-shadow: 0 0 14px rgba(230, 189, 120, 0.35), 0 4px 10px rgba(0,0,0,0.65);
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+@media (min-width: 1024px) {
+  .avatarBtn img {
+    width: 66px;
+    height: 66px;
+  }
 }
 
 .avatarBtn:hover img {
-  transform: scale(1.05);
-  border-color: #f5d889;
+  transform: scale(1.06);
+  border-color: #ffebac;
+  box-shadow: 0 0 20px rgba(245, 216, 137, 0.6), 0 4px 12px rgba(0,0,0,0.75);
 }
 
 .avatarLabel {
-  font-size: 10px;
-  color: #cbb49c;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f5d889;
+  background: rgba(38, 22, 32, 0.9);
+  border: 1px solid rgba(216, 176, 107, 0.45);
+  padding: 1px 8px;
+  border-radius: 999px;
 }
 
-/* Character Focus during narration */
+/* Character Focus / Concentration Overlay (starts below .top so it never overlaps the header!) */
 .characterFocusContainer {
   position: absolute;
-  inset: 0;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 15;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: radial-gradient(circle at 50% 30%, rgba(68,38,44,0.45) 0%, rgba(24,14,23,0.85) 75%);
-  padding: 16px;
-  animation: fadeIn 0.4s ease-out both;
+  background: radial-gradient(circle at 50% 25%, rgba(68,38,44,0.35) 0%, rgba(24,14,23,0.88) 78%);
+  padding: 12px 16px 24px;
+  animation: fadeIn 0.35s ease-out both;
+}
+
+/* No desktop, o foco de narração/concentração fica na metade esquerda (sobre a personagem), mantendo a mesa e o baralho visíveis na metade direita! */
+@media (min-width: 1024px) {
+  .characterFocusContainer {
+    right: 46%;
+    background: linear-gradient(
+      to top,
+      rgba(24, 14, 23, 0.94) 0%,
+      rgba(24, 14, 23, 0.55) 38%,
+      transparent 75%
+    );
+    padding: 16px 28px 24px;
+  }
 }
 
 @keyframes fadeIn {
@@ -464,18 +797,27 @@
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
+  gap: 8px;
 }
 
 .focusBadge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 12px;
+  font-weight: 600;
   color: #a5f3fc;
-  background: rgba(14, 25, 40, 0.85);
-  border: 1px solid rgba(103, 232, 249, 0.4);
-  padding: 4px 10px;
-  border-radius: 20px;
+  background: rgba(14, 25, 40, 0.9);
+  border: 1px solid rgba(103, 232, 249, 0.5);
+  padding: 5px 12px;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.focusBadgePreparing {
+  color: #fde68a;
+  background: rgba(48, 28, 16, 0.92);
+  border-color: rgba(251, 191, 36, 0.65);
 }
 
 .pulseDot {
@@ -486,6 +828,14 @@
   animation: pulseDotAnim 1.8s infinite;
 }
 
+.pulseDotGold {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fbbf24;
+  animation: pulseDotAnim 1.4s infinite;
+}
+
 @keyframes pulseDotAnim {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.7); }
@@ -493,16 +843,61 @@
 
 .focusCenter {
   text-align: center;
-  max-width: 600px;
-  margin: auto;
+  max-width: 520px;
+  margin: auto auto 14px;
+  background: rgba(26, 15, 24, 0.84);
+  border: 1px solid rgba(216, 176, 107, 0.4);
+  border-radius: 20px;
+  padding: 14px 20px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
 }
 
 .focusTitle {
   font-family: Georgia, serif;
-  font-size: clamp(20px, 3vw, 26px);
+  font-size: clamp(18px, 2.4vw, 24px);
   color: #fff0d8;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+}
+
+.focusStatusText {
+  font-size: 13px;
+  color: #e6d5c3;
+  line-height: 1.45;
+  margin: 4px 0 8px;
+}
+
+.dealingCards {
+  display: flex;
+  justify-content: center;
+  height: 30px;
+  align-items: center;
+  gap: 6px;
+  margin: 8px auto;
+}
+
+.dealingCards span {
+  width: 18px;
+  height: 26px;
+  border: 1px solid #f5d889;
+  border-radius: 3px;
+  background: linear-gradient(145deg, #683b50, #2a1521);
+  box-shadow: 0 0 8px rgba(245, 216, 137, 0.4);
+  animation: dealCardAnim 1.4s ease-in-out infinite;
+}
+
+.dealingCards span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dealingCards span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dealCardAnim {
+  0%, 70%, 100% { transform: translateY(0) rotate(0); opacity: 0.55; }
+  35% { transform: translateY(-4px) rotate(6deg); opacity: 1; }
 }
 
 .focusControls {
@@ -510,26 +905,28 @@
   gap: 10px;
   justify-content: center;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 10px;
   flex-wrap: wrap;
 }
 
 .focusStrip {
-  max-width: 900px;
+  max-width: 680px;
   margin: 0 auto;
   width: 100%;
-  background: rgba(24,14,23,0.75);
-  border: 1px solid rgba(181,150,109,0.35);
+  background: rgba(24,14,23,0.86);
+  border: 1px solid rgba(216,176,107,0.4);
   border-radius: 16px;
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  backdrop-filter: blur(6px);
 }
 
 .focusStripHeader {
   font-size: 11px;
-  color: #dfcdb8;
+  color: #efcd8e;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   text-align: left;
@@ -544,15 +941,20 @@
 
 .focusCardItem {
   flex-shrink: 0;
-  width: clamp(55px, 9vw, 75px);
+  width: clamp(56px, 8vw, 72px);
   aspect-ratio: 768 / 1376;
-  border-radius: 4px;
+  border-radius: 5px;
   overflow: hidden;
-  border: 1px solid #e4bb69;
+  border: 1.5px solid #e4bb69;
   background: #170f18;
   position: relative;
   cursor: pointer;
   padding: 0;
+  transition: transform 0.15s;
+}
+
+.focusCardItem:hover {
+  transform: translateY(-2px);
 }
 
 .focusCardItem img {
@@ -565,7 +967,7 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  background: rgba(19, 24, 35, 0.85);
+  background: rgba(19, 24, 35, 0.88);
   color: #ffebac;
   font-size: 10px;
   padding: 1px 4px;
@@ -573,22 +975,23 @@
   font-weight: 600;
 }
 
-/* Dialog styles */
+/* Dialog styles (Standardized across both Immersive and Normal views) */
 .dialog {
   background: #21151b;
   color: #fff0d8;
   border: 1px solid #b5966d;
-  border-radius: 16px;
-  padding: 20px;
-  max-width: min(90vw, 440px);
+  border-radius: 20px;
+  padding: 18px 20px;
+  width: min(92vw, 440px);
+  max-height: 92dvh;
   margin: auto;
-  box-shadow: 0 12px 36px rgba(0,0,0,0.85);
+  box-shadow: 0 16px 42px rgba(0,0,0,0.88);
   outline: none;
 }
 
 .dialog::backdrop {
-  background: rgba(10,6,10,0.8);
-  backdrop-filter: blur(3px);
+  background: rgba(10,6,10,0.82);
+  backdrop-filter: blur(4px);
 }
 
 .dialogHeader {
@@ -596,25 +999,70 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid rgba(181,150,109,0.3);
-  padding-bottom: 12px;
+  padding-bottom: 10px;
   margin-bottom: 12px;
 }
 
 .dialogHeader h2 {
   font-family: Georgia, serif;
-  font-size: 19px;
+  font-size: 20px;
   color: #fff0d8;
   margin: 0;
 }
 
+.dialogIconClose {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(54, 26, 38, 0.9);
+  border: 1px solid #c8a26e;
+  color: #fff0d8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+
+.dialogIconClose:hover {
+  border-color: #f5d889;
+  background: rgba(74, 36, 52, 0.95);
+}
+
 .dialogScroll {
-  max-height: 55vh;
+  max-height: 70dvh;
   overflow-y: auto;
-  line-height: 1.7;
-  padding: 6px 4px;
+  line-height: 1.65;
+  padding: 2px;
   font-size: 14px;
   color: #dfcdb8;
   text-align: left;
+}
+
+/* Botão destacado em azul dentro do modal para ir para a Visão Normal */
+.btnSwitchNormalModal {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1e3a5f, #0f172a);
+  border: 1.5px solid #60a5fa;
+  color: #e0f2fe;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.28);
+  transition: all 0.15s;
+}
+
+.btnSwitchNormalModal:hover {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #254675, #162444);
+  box-shadow: 0 0 20px rgba(96, 165, 250, 0.45);
 }
 
 .dialogCloseBtn {
@@ -624,11 +1072,11 @@
   color: #fff0d8;
   border: 1px solid #947158;
   border-radius: 12px;
-  padding: 10px 16px;
+  padding: 11px 16px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  margin-top: 14px;
+  margin-top: 12px;
   transition: all 0.15s;
   text-align: center;
 }
@@ -646,13 +1094,21 @@
 
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-  .portrait, .sceneExpression, .cardSlot.revealing img, .deckStack, .halo, .characterFocusContainer, .pulseDot {
+  .portrait,
+  .sceneExpression,
+  .cardSlot.revealing img,
+  .deckStack,
+  .deckSparkle,
+  .listenBtnPreparing,
+  .dealingCards span,
+  .halo,
+  .characterFocusContainer,
+  .pulseDot,
+  .pulseDotGold {
     animation: none !important;
     transition: none !important;
   }
-  .sceneExpression { opacity: 0; }
-}
-
-@media (min-width: 1024px) {
-  .characterFocusContainer { background: linear-gradient(to right, transparent 15%, rgba(24,14,23,.3) 45%, rgba(24,14,23,.9) 65%); }
+  .sceneExpression {
+    opacity: 0;
+  }
 }

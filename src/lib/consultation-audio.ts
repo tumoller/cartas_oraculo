@@ -29,10 +29,17 @@ function voiceLevel(level: number) {
 
 export function isLiveVoiceActive() { return liveActive; }
 export function getVoiceState() { return lastVoice; }
-export function canResumeCurrentVoice() { return !!lastMedia && !lastMedia.ended; }
+export function canResumeCurrentVoice() {
+  return Boolean(
+    lastVoice?.kind === "chapter" &&
+    lastMedia &&
+    !lastMedia.ended &&
+    lastMedia.currentTime > 0
+  );
+}
 export function pauseCurrentVoice() { currentMedia?.pause(); }
 export function resumeCurrentVoice(soundEnabled: boolean) {
-  if (soundEnabled && !liveActive && lastMedia) return lastMedia.play();
+  if (soundEnabled && !liveActive && lastMedia && !lastMedia.ended) return lastMedia.play();
   return Promise.resolve();
 }
 
@@ -108,6 +115,13 @@ export function setChapterAudioState(
   } else if (next.status === "pending" || next.status === "generating" || next.status === "ready") {
     requestedChapters.add(key);
   }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("oracle-chapter-audio-state", {
+        detail: { sessionId, chapter, state: next },
+      })
+    );
+  }
 }
 
 export function getChapterAudioState(sessionId: string, chapter: string): ChapterAudioState {
@@ -130,6 +144,7 @@ export function resetAudioTracking() {
   currentMedia?.pause();
   currentMedia = null;
   currentChapterSessionId = null;
+  lastMedia = null;
   lastVoice = null;
   chapterStates.clear();
   requestedChapters.clear();
@@ -176,8 +191,10 @@ export function monitorMediaVoice(element: HTMLAudioElement, kind: "welcome" | "
     if (liveActive) { element.pause(); return; }
     if (currentMedia && currentMedia !== element) currentMedia.pause();
     currentMedia = element;
-    if (kind === "chapter" && sessionId) currentChapterSessionId = sessionId;
-    lastMedia = element;
+    if (kind === "chapter") {
+      if (sessionId) currentChapterSessionId = sessionId;
+      lastMedia = element;
+    }
     if (!analyser && typeof AudioContext !== "undefined") {
       try {
         mediaContext ??= new AudioContext();

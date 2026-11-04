@@ -21,7 +21,7 @@ import { CosmicBackground } from "@/components/CosmicBackground";
 import { ReadingBoard } from "@/components/ReadingBoard";
 import { SpreadBoard } from "@/components/SpreadBoard";
 import { SPREADS, SpreadId } from "@/lib/spread-config";
-import { setSoundPreference } from "@/lib/sound-preference";
+import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
 import { getReadingFontSize, setReadingFontSize } from "@/lib/reading-font";
 import { PersonaType, ThemeType, ReadingSessionPayload } from "@/types";
 
@@ -68,6 +68,7 @@ const THEMES: { id: ThemeType; title: string; desc: string; icon: LucideIcon }[]
 ];
 
 export default function Home() {
+  const soundPref = useSoundPreference();
   const [step, setStep] = useState<"form" | "reading">("form");
   const [userName, setUserName] = useState("");
   const [question, setQuestion] = useState("");
@@ -85,6 +86,7 @@ export default function Home() {
     useState<ThemeType>("Amor & Relacionamento");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<"opening" | "concentrating" | "awakening">("opening");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<ReadingSessionPayload | null>(
     null
@@ -93,9 +95,28 @@ export default function Home() {
   const sceneTheme = activePersona === "Linha de Umbanda" ? "umbanda" : activePersona === "Cigana Tradicional" ? "cigano" : "cosmico";
 
   useEffect(() => {
+    if (narrationChoice === null && soundPref !== null) {
+      // Restore saved sound choice on form hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNarrationChoice(soundPref);
+    }
+  }, [narrationChoice, soundPref]);
+
+  useEffect(() => {
     document.documentElement.dataset.oraclePersona = sceneTheme;
     return () => { delete document.documentElement.dataset.oraclePersona; };
   }, [sceneTheme]);
+
+  // Transição de concentração durante o carregamento: olhos abertos -> olhos fechados (concentrando)
+  useEffect(() => {
+    if (!isLoading) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingPhase("opening");
+    const timer = window.setTimeout(() => {
+      setLoadingPhase((curr) => (curr === "opening" ? "concentrating" : curr));
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
 
   useEffect(() => {
     setReadingFontSize(getReadingFontSize());
@@ -125,7 +146,12 @@ export default function Home() {
       const response = await fetch(`/api/reading/${id}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível abrir a consulta.");
-      setInitialNarration(undefined); setSessionData(data); setStep("reading"); window.scrollTo({top:0});
+      setLoadingPhase("awakening");
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
+      setInitialNarration(narrationChoice ?? soundPref ?? undefined);
+      setSessionData(data);
+      setStep("reading");
+      window.scrollTo({top:0});
     } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Não foi possível abrir a consulta."); }
     finally { setIsLoading(false); }
   };
@@ -137,7 +163,8 @@ export default function Home() {
       setErrorMessage("Por favor, digite o seu primeiro nome.");
       return;
     }
-    if (narrationChoice === null) {
+    const effectiveNarration = narrationChoice ?? soundPref;
+    if (effectiveNarration === null) {
       setErrorMessage("Escolha se deseja começar com som ou sem som.");
       return;
     }
@@ -172,7 +199,11 @@ export default function Home() {
         throw new Error(data.error || "Erro ao consultar o oráculo.");
       }
 
-      setInitialNarration(narrationChoice);
+      // Abre os olhos por um breve instante antes de abrir a mesa
+      setLoadingPhase("awakening");
+      await new Promise((resolve) => window.setTimeout(resolve, 650));
+
+      setInitialNarration(effectiveNarration);
       setSessionData(data);
       const updated = [{id:data.id,label:`${data.userName} · ${SPREADS[data.spread as SpreadId || "line5"].title}`}, ...recent.filter((item) => item.id !== data.id)].slice(0,20);
       setRecent(updated); setRequestIdentity(null);
@@ -193,240 +224,483 @@ export default function Home() {
   const handleReset = () => {
     setSessionData(null);
     setInitialNarration(undefined);
-    setNarrationChoice(null);
     setStep("form");
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
+  const loadingAssets = sceneAssets(selectedPersona);
+
   return (
-    <main data-oracle-persona={sceneTheme} className={`min-h-screen min-w-0 relative flex flex-col items-center justify-center ${step === "reading" ? "p-2 sm:p-4" : "p-4 sm:p-6 lg:p-8"}`}>
+    <main
+      data-oracle-persona={sceneTheme}
+      className={`min-h-screen w-full min-w-0 relative flex flex-col ${
+        step === "reading"
+          ? "items-stretch justify-start p-0"
+          : "items-center justify-center p-4 sm:p-6 lg:p-8"
+      }`}
+    >
       {sceneTheme === "cosmico" && <CosmicBackground />}
 
       {step === "reading" && sessionData ? (
-        sessionData.sections ? <SpreadBoard key={sessionData.id} session={sessionData} onReset={handleReset} initialNarration={initialNarration} /> : <ReadingBoard key={sessionData.id} initialSession={sessionData} onReset={handleReset} initialNarration={initialNarration} />
+        sessionData.sections ? (
+          <SpreadBoard key={sessionData.id} session={sessionData} onReset={handleReset} initialNarration={initialNarration} />
+        ) : (
+          <ReadingBoard key={sessionData.id} initialSession={sessionData} onReset={handleReset} initialNarration={initialNarration} />
+        )
       ) : (
-        /* FORMULÁRIO DE ENTRADA (PASSO 1) */
-        <div ref={(element) => { if (element) element.inert = isLoading; }} className="w-full min-w-0 max-w-2xl bg-slate-900/80 border border-slate-800 rounded-3xl p-4 sm:p-10 shadow-2xl backdrop-blur-md cosmic-card-glow my-8">
+        /* FORMULÁRIO DE ENTRADA (PASSO 1) — Expandido em 2 colunas no Desktop */
+        <div
+          ref={(element) => {
+            if (element) element.inert = isLoading;
+          }}
+          className="w-full min-w-0 max-w-2xl lg:max-w-5xl xl:max-w-6xl bg-slate-900/85 border border-slate-800 rounded-3xl p-4 sm:p-8 lg:p-10 shadow-2xl backdrop-blur-md cosmic-card-glow my-4 lg:my-6"
+        >
           {/* Cabeçalho do App */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-900/40 border border-purple-400/30 text-purple-300 text-xs font-semibold uppercase tracking-wider mb-3">
+          <div className="text-center mb-6 lg:mb-8">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-purple-900/40 border border-purple-400/30 text-purple-300 text-xs font-semibold uppercase tracking-wider mb-3">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               Baralho Cigano & Oráculo Universal
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-100 font-serif tracking-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-100 font-serif tracking-tight">
               Tiragem de Cartas Oraculares
             </h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-              Faça uma pergunta ou escolha um tema para explorar as cartas como
-              reflexão simbólica.
+            <p className="text-sm sm:text-base text-slate-400 mt-2 max-w-xl mx-auto">
+              Faça uma pergunta ou escolha um tema para explorar as cartas como reflexão simbólica.
             </p>
           </div>
 
           <form onSubmit={handleStartReading} className="w-full min-w-0 space-y-6">
-            {recent.length > 0 && <details className="rounded-xl border border-slate-700 p-4 text-sm"><summary className="cursor-pointer text-amber-200">Minhas leituras neste navegador</summary><p className="text-xs text-slate-400 mt-2">Você pode reabrir estas leituras por até 30 dias neste mesmo navegador.</p><div className="mt-3 space-y-2">{recent.map((item) => <button key={item.id} type="button" disabled={isLoading} onClick={() => openSaved(item.id)} className="block text-left underline underline-offset-4 text-slate-200 py-2">{item.label}</button>)}</div></details>}
-            {requestIdentity && <div className="rounded-xl border border-amber-500/30 p-4 text-sm text-amber-100">Sua leitura ainda está sendo preparada. Se tentar novamente, as mesmas cartas serão usadas.<button type="button" disabled={isLoading} onClick={() => { setRequestIdentity(null); try { localStorage.removeItem("oracle_pending"); } catch {} }} className="block mt-3 text-xs underline disabled:opacity-40">Começar outra leitura</button></div>}
-            {/* Campo 1: Primeiro Nome */}
-            <fieldset disabled={Boolean(requestIdentity)} className="min-w-0 space-y-6 disabled:opacity-70">
-            <div>
-              <label
-                htmlFor="userName"
-                className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2"
-              >
-                1. Digite seu Primeiro Nome:
-              </label>
-              <input
-                id="userName"
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Ex: Mariana, Carlos, Helena..."
-                maxLength={40}
-                required
-                className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium text-sm"
-              />
-            </div>
-
-            {/* Campo 2: Escolha da Persona */}
-            <fieldset className="min-w-0">
-              <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                2. Escolha o estilo da leitura:
-              </legend>
-              <div className="flex w-full min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-3 sm:grid sm:grid-cols-3 sm:overflow-visible" aria-label="Personagens disponíveis">
-                {PERSONAS.map((item) => {
-                  const Icon = item.icon;
-                  const isSelected = selectedPersona === item.id;
-                  return (
+            {recent.length > 0 && (
+              <details className="rounded-2xl border border-slate-700/80 bg-slate-950/60 p-4 text-sm">
+                <summary className="cursor-pointer font-medium text-amber-200">
+                  Minhas leituras neste navegador ({recent.length})
+                </summary>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  Você pode reabrir estas leituras por até 30 dias neste mesmo navegador.
+                </p>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {recent.map((item) => (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setSelectedPersona(item.id)}
-                      aria-pressed={isSelected}
-                      className={`w-[78%] shrink-0 snap-center overflow-hidden rounded-2xl border cursor-pointer transition-colors flex flex-col text-left sm:w-auto ${
-                        isSelected
-                          ? "bg-purple-950/60 border-purple-500 shadow-md shadow-purple-500/20"
-                          : "bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950"
-                      }`}
+                      disabled={isLoading}
+                      onClick={() => openSaved(item.id)}
+                      className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-left text-xs text-slate-200 hover:border-amber-400/50 hover:text-amber-100 transition-colors truncate cursor-pointer"
                     >
-                      <div className="relative h-72 w-full bg-slate-950 sm:h-56" style={{ backgroundImage: `radial-gradient(ellipse at bottom, ${sceneAssets(item.id).accent}30, transparent 70%)` }}>
-                        <Image src={sceneAssets(item.id).portrait} alt={item.title} fill sizes="(max-width: 640px) 65vw, 200px" className="object-contain object-bottom" quality={80} />
-                        {isSelected && <span className="absolute bottom-2 left-2 rounded-full border border-amber-300/50 bg-slate-950/90 px-3 py-1 text-xs text-amber-200">Selecionada</span>}
-                      </div>
-                      <div className="p-3.5">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Icon
-                          className={`w-4 h-4 ${
-                            isSelected ? "text-amber-400" : "text-slate-400"
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-bold ${
-                            isSelected ? "text-white" : "text-slate-300"
-                          }`}
-                        >
-                          {item.title}
-                        </span>
-                      </div>
-                      <span className="text-sm text-slate-400 leading-tight">
-                        {item.desc}
-                      </span>
-                      </div>
+                      {item.label}
                     </button>
-                  );
-                })}
-              </div>
-            </fieldset>
+                  ))}
+                </div>
+              </details>
+            )}
 
-            {/* Campo 3: Tema da Leitura */}
-            <fieldset className="min-w-0">
-              <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                3. Escolha o tema:
-              </legend>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {THEMES.map((item) => {
-                  const Icon = item.icon;
-                  const isSelected = selectedTheme === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedTheme(item.id)}
-                      aria-pressed={isSelected}
-                      className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between text-left ${
-                        isSelected
-                          ? "bg-indigo-950/60 border-indigo-500 shadow-md shadow-indigo-500/20"
-                          : "bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Icon
-                          className={`w-4 h-4 ${
-                            isSelected ? "text-cyan-400" : "text-slate-400"
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-bold ${
-                            isSelected ? "text-white" : "text-slate-300"
-                          }`}
-                        >
-                          {item.title}
-                        </span>
-                      </div>
-                      <span className="text-sm text-slate-400 leading-tight">
-                        {item.desc}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <div>
-              <label htmlFor="question" className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                4. Sua pergunta (opcional):
-              </label>
-              <textarea
-                id="question"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                maxLength={500}
-                rows={3}
-                placeholder="O que você gostaria de refletir sobre este tema?"
-                className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm"
-              />
-            </div>
-
-            <details className="text-sm text-slate-400">
-              <summary className="cursor-pointer text-slate-300">Preparar a leitura (opcional)</summary>
-              <p className="mt-2">Se quiser, respire com calma e pense no que deseja compreender. Você pode seguir sem fazer isso; a leitura é simbólica e não promete prever acontecimentos.</p>
-            </details>
-            </fieldset>
-
-            <fieldset className="min-w-0"><legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Escolha quantas cartas abrir</legend><div className="grid grid-cols-2 gap-2">{Object.entries(SPREADS).map(([id,item]) => <button key={id} type="button" disabled={Boolean(requestIdentity)} aria-pressed={spread === id} onClick={() => { setSpread(id as SpreadId); setDemoAccess(false); }} className={`min-w-0 p-3 rounded-xl border text-left text-sm ${spread === id ? "border-amber-400 bg-amber-950/40 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-300"}`}>{item.title}</button>)}</div></fieldset>
-            {(spread === "box9" || spread === "grand36") ? <fieldset disabled={Boolean(requestIdentity)} className="min-w-0 disabled:opacity-70">
-              <legend className="mb-2 text-sm font-bold text-slate-200">Profundidade da leitura</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button type="button" aria-pressed={readingDepth === "basic"} onClick={() => setReadingDepth("basic")} className={`min-h-12 rounded-xl border p-3 text-left text-sm ${readingDepth === "basic" ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 text-slate-200"}`}><strong className="block">Básico</strong><span>Leitura das linhas e síntese geral.</span></button>
-                <button type="button" aria-pressed={readingDepth === "complete"} onClick={() => setReadingDepth("complete")} className={`min-h-12 rounded-xl border p-3 text-left text-sm ${readingDepth === "complete" ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 text-slate-200"}`}><strong className="block">Completo</strong><span>{spread === "box9" ? "Linhas, colunas, centro, diagonais e síntese." : "Linhas, vizinhança do tema, quatro cantos e síntese."}</span></button>
-              </div>
-            </fieldset> : <p className="text-sm text-slate-300">Centro e combinações integrados à leitura da linha.</p>}
-            {spread !== "line5" && <label className="flex gap-3 text-sm text-slate-300 rounded-xl p-4 bg-indigo-950/40 border border-indigo-500/30"><input type="checkbox" checked={demoAccess} disabled={Boolean(requestIdentity)} onChange={(event) => setDemoAccess(event.target.checked)} required className="mt-1" /><span>Quero ver a leitura completa nesta demonstração. Não há cobrança.</span></label>}
-
-            <fieldset className="min-w-0">
-              <legend className="block text-sm font-bold text-slate-200 mb-2">Gostaria de ouvir a leitura?</legend>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="group" aria-label="Som da consulta">
-                <button type="button" aria-pressed={narrationChoice === true} onClick={() => { setNarrationChoice(true); setSoundPreference(true); }} className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium ${narrationChoice === true ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-200"}`}>Sim, ouvir a leitura</button>
-                <button type="button" aria-pressed={narrationChoice === false} onClick={() => { setNarrationChoice(false); setSoundPreference(false); }} className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium ${narrationChoice === false ? "border-amber-300 bg-amber-950/50 text-amber-100" : "border-slate-700 bg-slate-950 text-slate-200"}`}>Seguir sem som</button>
-              </div>
-              <p className="mt-2 text-sm text-slate-400">Com som, a narração é preparada enquanto você abre as cartas e começa quando a parte estiver revelada. Você pode mudar sua escolha durante a leitura.</p>
-            </fieldset>
-            <p className="text-sm leading-relaxed text-slate-400">Esta é uma interpretação digital baseada nos símbolos e métodos do Petit Lenormand, o baralho cigano. Receba a leitura de acordo com sua fé e intenção: ela não é uma verdade absoluta nem substitui uma consulta presencial. Nenhuma leitura, digital ou presencial, determina seu futuro ou suas decisões.</p>
-
-            {/* Feedback de Erro */}
-            {errorMessage && (
-              <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
+            {requestIdentity && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-sm text-amber-100 flex flex-wrap items-center justify-between gap-3">
+                <span>Sua leitura ainda está sendo preparada. Se tentar novamente, as mesmas cartas serão usadas.</span>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setRequestIdentity(null);
+                    try {
+                      localStorage.removeItem("oracle_pending");
+                    } catch {}
+                  }}
+                  className="text-xs underline disabled:opacity-40 shrink-0"
+                >
+                  Começar outra leitura
+                </button>
               </div>
             )}
 
-            {/* Botão de Ação */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-4 px-6 rounded-xl bg-linear-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-sm sm:text-base tracking-wide transition-all shadow-xl shadow-purple-900/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin text-white" />
-                  <span>Preparando sua consulta…</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5 text-amber-300" />
-                  <span>{requestIdentity ? "Concluir a mesma consulta" : `Abrir minha mesa · ${SPREADS[spread].count} cartas`}</span>
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+              {/* COLUNA ESQUERDA NO DESKTOP: Nome, Estilo da Leitura e Tema */}
+              <fieldset disabled={Boolean(requestIdentity)} className="min-w-0 space-y-6 disabled:opacity-70 lg:col-span-7">
+                {/* Campo 1: Primeiro Nome */}
+                <div>
+                  <label
+                    htmlFor="userName"
+                    className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2"
+                  >
+                    1. Digite seu Primeiro Nome:
+                  </label>
+                  <input
+                    id="userName"
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="Ex: Mariana, Carlos, Helena..."
+                    maxLength={40}
+                    required
+                    className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium text-sm"
+                  />
+                </div>
+
+                {/* Campo 2: Escolha da Persona */}
+                <fieldset className="min-w-0">
+                  <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                    2. Escolha o estilo da leitura:
+                  </legend>
+                  <div
+                    className="flex w-full min-w-0 snap-x snap-mandatory gap-3.5 overflow-x-auto overscroll-x-contain pb-3 sm:grid sm:grid-cols-3 sm:overflow-visible"
+                    aria-label="Personagens disponíveis"
+                  >
+                    {PERSONAS.map((item) => {
+                      const Icon = item.icon;
+                      const isSelected = selectedPersona === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setSelectedPersona(item.id)}
+                          aria-pressed={isSelected}
+                          className={`w-[78%] shrink-0 snap-center overflow-hidden rounded-2xl border cursor-pointer transition-all flex flex-col text-left sm:w-auto ${
+                            isSelected
+                              ? "bg-purple-950/60 border-purple-400 shadow-lg shadow-purple-500/25 ring-1 ring-purple-400/40"
+                              : "bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950"
+                          }`}
+                        >
+                          <div
+                            className="relative h-72 w-full bg-slate-950 sm:h-60 lg:h-64"
+                            style={{
+                              backgroundImage: `radial-gradient(ellipse at bottom, ${sceneAssets(item.id).accent}35, transparent 70%)`,
+                            }}
+                          >
+                            <Image
+                              src={sceneAssets(item.id).portrait}
+                              alt={item.title}
+                              fill
+                              sizes="(max-width: 640px) 65vw, 240px"
+                              className="object-contain object-bottom"
+                              quality={85}
+                            />
+                            {isSelected && (
+                              <span className="absolute bottom-2 left-2 rounded-full border border-amber-300/60 bg-slate-950/90 px-3 py-1 text-xs font-medium text-amber-200">
+                                Selecionada
+                              </span>
+                            )}
+                          </div>
+                          <div className="p-3.5 flex-1 flex flex-col">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <Icon className={`w-4 h-4 shrink-0 ${isSelected ? "text-amber-400" : "text-slate-400"}`} />
+                              <span className={`text-xs font-bold ${isSelected ? "text-white" : "text-slate-300"}`}>
+                                {item.title}
+                              </span>
+                            </div>
+                            <span className="text-xs sm:text-sm text-slate-400 leading-snug">{item.desc}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {/* Campo 3: Tema da Leitura */}
+                <fieldset className="min-w-0">
+                  <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                    3. Escolha o tema:
+                  </legend>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {THEMES.map((item) => {
+                      const Icon = item.icon;
+                      const isSelected = selectedTheme === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setSelectedTheme(item.id)}
+                          aria-pressed={isSelected}
+                          className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between text-left ${
+                            isSelected
+                              ? "bg-indigo-950/60 border-indigo-400 shadow-md shadow-indigo-500/20"
+                              : "bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Icon className={`w-4 h-4 shrink-0 ${isSelected ? "text-cyan-400" : "text-slate-400"}`} />
+                            <span className={`text-xs font-bold ${isSelected ? "text-white" : "text-slate-300"}`}>
+                              {item.title}
+                            </span>
+                          </div>
+                          <span className="text-xs sm:text-sm text-slate-400 leading-snug">{item.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              </fieldset>
+
+              {/* COLUNA DIREITA NO DESKTOP: Pergunta, Quantidade de Cartas, Profundidade, Som e Botão */}
+              <div className="min-w-0 space-y-5 lg:col-span-5 lg:rounded-2xl lg:border lg:border-slate-800/90 lg:bg-slate-950/45 lg:p-6">
+                <fieldset disabled={Boolean(requestIdentity)} className="min-w-0 space-y-4 disabled:opacity-70">
+                  <div>
+                    <label
+                      htmlFor="question"
+                      className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2"
+                    >
+                      4. Sua pergunta (opcional):
+                    </label>
+                    <textarea
+                      id="question"
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      placeholder="O que você gostaria de refletir sobre este tema?"
+                      className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+
+                  <details className="text-xs sm:text-sm text-slate-400">
+                    <summary className="cursor-pointer text-slate-300">Preparar a leitura (opcional)</summary>
+                    <p className="mt-1.5">
+                      Se quiser, respire com calma e pense no que deseja compreender. Você pode seguir sem fazer isso; a
+                      leitura é simbólica e não promete prever acontecimentos.
+                    </p>
+                  </details>
+                </fieldset>
+
+                <fieldset className="min-w-0">
+                  <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                    5. Escolha quantas cartas abrir:
+                  </legend>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {Object.entries(SPREADS).map(([id, item]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        disabled={Boolean(requestIdentity)}
+                        aria-pressed={spread === id}
+                        onClick={() => {
+                          setSpread(id as SpreadId);
+                          setDemoAccess(false);
+                        }}
+                        className={`min-w-0 p-3 rounded-xl border text-left text-sm transition-colors cursor-pointer ${
+                          spread === id
+                            ? "border-amber-400 bg-amber-950/45 text-amber-100 font-semibold"
+                            : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600"
+                        }`}
+                      >
+                        {item.title}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                {spread === "box9" || spread === "grand36" ? (
+                  <fieldset disabled={Boolean(requestIdentity)} className="min-w-0 disabled:opacity-70">
+                    <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Profundidade da leitura:
+                    </legend>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        aria-pressed={readingDepth === "basic"}
+                        onClick={() => setReadingDepth("basic")}
+                        className={`min-h-12 rounded-xl border p-3 text-left text-xs sm:text-sm cursor-pointer ${
+                          readingDepth === "basic"
+                            ? "border-amber-300 bg-amber-950/50 text-amber-100"
+                            : "border-slate-700 bg-slate-950 text-slate-200"
+                        }`}
+                      >
+                        <strong className="block">Básico</strong>
+                        <span className="text-xs opacity-90">Leitura das linhas e síntese geral.</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={readingDepth === "complete"}
+                        onClick={() => setReadingDepth("complete")}
+                        className={`min-h-12 rounded-xl border p-3 text-left text-xs sm:text-sm cursor-pointer ${
+                          readingDepth === "complete"
+                            ? "border-amber-300 bg-amber-950/50 text-amber-100"
+                            : "border-slate-700 bg-slate-950 text-slate-200"
+                        }`}
+                      >
+                        <strong className="block">Completo</strong>
+                        <span className="text-xs opacity-90">
+                          {spread === "box9"
+                            ? "Linhas, colunas, centro, diagonais e síntese."
+                            : "Linhas, vizinhança do tema, quatro cantos e síntese."}
+                        </span>
+                      </button>
+                    </div>
+                  </fieldset>
+                ) : (
+                  <p className="text-xs sm:text-sm text-slate-300">Centro e combinações integrados à leitura da linha.</p>
+                )}
+
+                {spread !== "line5" && (
+                  <label className="flex gap-3 text-xs sm:text-sm text-slate-300 rounded-xl p-3.5 bg-indigo-950/40 border border-indigo-500/30 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={demoAccess}
+                      disabled={Boolean(requestIdentity)}
+                      onChange={(event) => setDemoAccess(event.target.checked)}
+                      required
+                      className="mt-0.5 shrink-0"
+                    />
+                    <span>Quero ver a leitura completa nesta demonstração. Não há cobrança.</span>
+                  </label>
+                )}
+
+                <fieldset className="min-w-0">
+                  <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                    Gostaria de ouvir a leitura?
+                  </legend>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" role="group" aria-label="Som da consulta">
+                    <button
+                      type="button"
+                      aria-pressed={(narrationChoice ?? soundPref) === true}
+                      onClick={() => {
+                        setNarrationChoice(true);
+                        setSoundPreference(true);
+                      }}
+                      className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium cursor-pointer ${
+                        (narrationChoice ?? soundPref) === true
+                          ? "border-amber-300 bg-amber-950/50 text-amber-100"
+                          : "border-slate-700 bg-slate-950 text-slate-200"
+                      }`}
+                    >
+                      Sim, ouvir a leitura
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={(narrationChoice ?? soundPref) === false}
+                      onClick={() => {
+                        setNarrationChoice(false);
+                        setSoundPreference(false);
+                      }}
+                      className={`min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-medium cursor-pointer ${
+                        (narrationChoice ?? soundPref) === false
+                          ? "border-amber-300 bg-amber-950/50 text-amber-100"
+                          : "border-slate-700 bg-slate-950 text-slate-200"
+                      }`}
+                    >
+                      Seguir sem som
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">
+                    Com som, a narração é preparada enquanto você abre as cartas e começa quando a parte estiver
+                    revelada.
+                  </p>
+                </fieldset>
+
+                {/* Feedback de Erro */}
+                {errorMessage && (
+                  <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
+                {/* Botão de Ação */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-4 px-6 rounded-xl bg-linear-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-sm sm:text-base tracking-wide transition-all shadow-xl shadow-purple-900/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                      <span>Preparando sua consulta…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 text-amber-300" />
+                      <span>
+                        {requestIdentity
+                          ? "Concluir a mesma consulta"
+                          : `Abrir minha mesa · ${SPREADS[spread].count} cartas`}
+                      </span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                <p className="text-xs leading-relaxed text-slate-400">
+                  Interpretação digital simbólica baseada no Petit Lenormand (baralho cigano). Não determina seu futuro
+                  nem substitui atendimento profissional ou presencial.
+                </p>
+              </div>
+            </div>
           </form>
 
           {/* Rodapé sutil de segurança */}
-          <div className="mt-8 pt-4 border-t border-slate-800/80 flex items-center justify-between text-sm text-slate-500">
+          <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs sm:text-sm text-slate-500">
             <span>Sorteio de {SPREADS[spread].count} cartas</span>
-            <Link href="/como-funciona" className="underline underline-offset-4 hover:text-slate-300">Como funciona</Link>
+            <Link href="/como-funciona" className="underline underline-offset-4 hover:text-slate-300">
+              Como funciona
+            </Link>
           </div>
         </div>
       )}
-      {isLoading && <div role="status" aria-live="polite" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-5 backdrop-blur-md">
-        <div className="flex w-full max-w-sm flex-col items-center text-center">
-          <div className="consultation-preparing-portrait relative h-[min(52dvh,360px)] w-full">
-            <Image src={sceneAssets(selectedPersona).portrait} alt="" fill sizes="(max-width: 640px) 90vw, 384px" className="object-contain object-bottom" priority />
+
+      {/* TELA CENTRAL DE CONCENTRAÇÃO / CARREGAMENTO (Olhos abertos -> Olhos fechados concentrando -> Abre os olhos ao concluir) */}
+      {isLoading && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-4 sm:p-6 backdrop-blur-md"
+        >
+          <div className="flex w-full max-w-lg flex-col items-center text-center">
+            <div
+              className="consultation-preparing-portrait relative h-[min(64dvh,470px)] w-full overflow-hidden rounded-3xl border border-amber-300/45 bg-slate-950 shadow-[0_0_50px_rgba(230,189,120,0.22)]"
+              style={{
+                backgroundImage: `radial-gradient(ellipse at 50% 30%, ${loadingAssets.accent}40, #120b16 78%)`,
+              }}
+            >
+              {/* Cena base (olhos abertos) */}
+              <Image
+                src={loadingAssets.scene}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 92vw, 512px"
+                className="object-cover object-top"
+                priority
+              />
+              {/* Cena concentrando (olhos fechados) durante a preparação */}
+              <Image
+                src={loadingAssets.sceneConcentrating}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 92vw, 512px"
+                className={`object-cover object-top transition-opacity duration-500 ${
+                  loadingPhase === "concentrating" ? "opacity-100" : "opacity-0"
+                }`}
+                priority
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-slate-950 via-slate-950/60 to-transparent" />
+              <div className="absolute inset-x-4 bottom-4 flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-amber-200">
+                <span>✦ {selectedPersona}</span>
+                <span>
+                  {loadingPhase === "opening"
+                    ? "A mesa se abre"
+                    : loadingPhase === "concentrating"
+                    ? "Concentrando…"
+                    : "Mesa pronta"}
+                </span>
+              </div>
+            </div>
+
+            <h2 className="mt-5 font-serif text-2xl sm:text-3xl text-amber-100">
+              {loadingSaved
+                ? "Abrindo sua leitura"
+                : loadingPhase === "opening"
+                ? "A mesa se abre…"
+                : loadingPhase === "concentrating"
+                ? "Concentrando na sua leitura…"
+                : "Sua mesa está pronta"}
+            </h2>
+            <p className="mt-2.5 max-w-md text-sm sm:text-base leading-relaxed text-slate-200">
+              {loadingSaved
+                ? "Buscando a leitura que você já começou."
+                : loadingPhase === "awakening"
+                ? "As cartas foram dispostas na mesa. Entrando na sua consulta…"
+                : "Sua leitura está sendo preparada com atenção. Em instantes, os olhos se abrem e você poderá revelar as cartas no seu ritmo."}
+            </p>
           </div>
-          <h2 className="mt-5 font-serif text-2xl text-amber-100">{loadingSaved ? "Abrindo sua leitura" : "Preparando sua mesa"}</h2>
-          <p className="mt-3 text-base leading-relaxed text-slate-200">{loadingSaved ? "Buscando a leitura que você já começou." : "Sua leitura está sendo preparada. Em instantes, você poderá abrir as cartas no seu ritmo."}</p>
         </div>
-      </div>}
+      )}
     </main>
   );
 }
-

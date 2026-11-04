@@ -49,6 +49,7 @@ export function ReadingAudio({
   prepare = false,
   autoPlay = false,
   playbackReady = true,
+  headless = false,
   showPresentation = false,
   onOpenPresentation,
   onDismissPresentation,
@@ -64,6 +65,7 @@ export function ReadingAudio({
   prepare?: boolean;
   autoPlay?: boolean;
   playbackReady?: boolean;
+  headless?: boolean;
   showPresentation?: boolean;
   onOpenPresentation?: () => void;
   onDismissPresentation?: () => void;
@@ -319,10 +321,10 @@ export function ReadingAudio({
       })
       .catch(() => {
         setAutoplayBlocked(true);
-        onOpenPresentation?.();
+        if (!headless) onOpenPresentation?.();
         setError("O navegador pediu um toque para iniciar a narração. Toque em Reproduzir narração.");
       });
-  }, [autoPlay, playbackReady, soundEnabled, status, url, onOpenPresentation, requestAudio]);
+  }, [autoPlay, playbackReady, soundEnabled, status, url, onOpenPresentation, requestAudio, headless]);
 
   const resumeAudio = () => {
     if (!playbackReady || isLiveVoiceActive()) return;
@@ -360,6 +362,82 @@ export function ReadingAudio({
       if (el.open) el.close();
     };
   }, [showPresentation]);
+
+  const audioEl = (
+      <audio
+        ref={player}
+        controls={!headless}
+        preload={getSavedChapterTime(sessionId, chapter) > 0 ? "metadata" : "none"}
+        src={url}
+        onLoadedMetadata={(event) => {
+          const saved = getSavedChapterTime(sessionId, chapter);
+          if (saved > 0 && event.currentTarget.duration > 0 && saved < event.currentTarget.duration) {
+            if (Math.abs(event.currentTarget.currentTime - saved) > 0.3) {
+              event.currentTarget.currentTime = saved;
+            }
+          }
+        }}
+        onTimeUpdate={(event) => {
+          if (event.currentTarget.currentTime > 0) {
+            saveChapterTime(sessionId, chapter, event.currentTarget.currentTime);
+          }
+        }}
+        onPlay={(event) => {
+          if (!playbackReady || isLiveVoiceActive()) {
+            event.currentTarget.pause();
+            setError(
+              isLiveVoiceActive()
+                ? "Encerre a conversa ao vivo antes de ouvir esta narração."
+                : "A narração desta parte ainda não pode ser reproduzida."
+            );
+            return;
+          }
+          userPaused.current = false;
+          setIsPlaying(true);
+          setAutoplayBlocked(false);
+          setChapterAudioState(sessionId, chapter, { status: "ready", hasPlayed: true, userPaused: false });
+          setError("");
+          window.dispatchEvent(new CustomEvent("oracle-audio-start", { detail: playerId }));
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          if (player.current && !player.current.ended && soundEnabled === true) {
+            userPaused.current = true;
+            saveChapterTime(sessionId, chapter, player.current.currentTime);
+            setChapterAudioState(sessionId, chapter, { status: "ready", userPaused: true });
+            onAutoPlayConsumedRef.current?.();
+          }
+        }}
+        onEnded={() => {
+          setIsPlaying(false);
+          setChapterAudioState(sessionId, chapter, { status: "ready", hasPlayed: true });
+          clearChapterTime(sessionId, chapter);
+          onEnded?.();
+          window.dispatchEvent(new CustomEvent("oracle-chapter-ended", { detail: { sessionId, chapter } }));
+        }}
+        onError={() => {
+          setIsPlaying(false);
+          setMediaError(true);
+        }}
+        onCanPlay={() => {
+          setMediaError(false);
+          const saved = getSavedChapterTime(sessionId, chapter);
+          if (saved > 0 && player.current && player.current.duration > 0 && saved < player.current.duration) {
+            if (Math.abs(player.current.currentTime - saved) > 0.3) {
+              player.current.currentTime = saved;
+            }
+          }
+        }}
+        className={headless ? undefined : "w-full max-w-md"}
+        aria-label={`Ouvir narração: ${audio?.title ?? title ?? chapter}`}
+      />
+  );
+
+  if (headless) {
+    // Keep the element mounted regardless of the sound preference so a tap that turns sound on can play in the same gesture.
+    const ready = playbackReady && status === "ready";
+    return ready ? <div hidden aria-hidden="true">{audioEl}</div> : null;
+  }
 
   const displayTitle = lineLabel || title || "Leitura da linha";
 
@@ -511,73 +589,7 @@ export function ReadingAudio({
         ) : status === "ready" ? (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Narração desta parte</p>
-            <audio
-              ref={player}
-              controls
-              preload={getSavedChapterTime(sessionId, chapter) > 0 ? "metadata" : "none"}
-              src={url}
-              onLoadedMetadata={(event) => {
-                const saved = getSavedChapterTime(sessionId, chapter);
-                if (saved > 0 && event.currentTarget.duration > 0 && saved < event.currentTarget.duration) {
-                  if (Math.abs(event.currentTarget.currentTime - saved) > 0.3) {
-                    event.currentTarget.currentTime = saved;
-                  }
-                }
-              }}
-              onTimeUpdate={(event) => {
-                if (event.currentTarget.currentTime > 0) {
-                  saveChapterTime(sessionId, chapter, event.currentTarget.currentTime);
-                }
-              }}
-              onPlay={(event) => {
-                if (!playbackReady || isLiveVoiceActive()) {
-                  event.currentTarget.pause();
-                  setError(
-                    isLiveVoiceActive()
-                      ? "Encerre a conversa ao vivo antes de ouvir esta narração."
-                      : "A narração desta parte ainda não pode ser reproduzida."
-                  );
-                  return;
-                }
-                userPaused.current = false;
-                setIsPlaying(true);
-                setAutoplayBlocked(false);
-                setChapterAudioState(sessionId, chapter, { status: "ready", hasPlayed: true, userPaused: false });
-                setError("");
-                window.dispatchEvent(new CustomEvent("oracle-audio-start", { detail: playerId }));
-              }}
-              onPause={() => {
-                setIsPlaying(false);
-                if (player.current && !player.current.ended && soundEnabled === true) {
-                  userPaused.current = true;
-                  saveChapterTime(sessionId, chapter, player.current.currentTime);
-                  setChapterAudioState(sessionId, chapter, { status: "ready", userPaused: true });
-                  onAutoPlayConsumedRef.current?.();
-                }
-              }}
-              onEnded={() => {
-                setIsPlaying(false);
-                setChapterAudioState(sessionId, chapter, { status: "ready", hasPlayed: true });
-                clearChapterTime(sessionId, chapter);
-                onEnded?.();
-                window.dispatchEvent(new CustomEvent("oracle-chapter-ended", { detail: { sessionId, chapter } }));
-              }}
-              onError={() => {
-                setIsPlaying(false);
-                setMediaError(true);
-              }}
-              onCanPlay={() => {
-                setMediaError(false);
-                const saved = getSavedChapterTime(sessionId, chapter);
-                if (saved > 0 && player.current && player.current.duration > 0 && saved < player.current.duration) {
-                  if (Math.abs(player.current.currentTime - saved) > 0.3) {
-                    player.current.currentTime = saved;
-                  }
-                }
-              }}
-              className="w-full max-w-md"
-              aria-label={`Ouvir narração: ${audio?.title ?? title ?? chapter}`}
-            />
+            {audioEl}
             {error && (
               <button
                 type="button"

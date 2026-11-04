@@ -30,10 +30,13 @@ export type ConsultationImmersiveProps = {
   onSelectCard: (position: number) => void;
   chapterText?: string | null;
   cardNote?: string | null;
-  onTogglePresentation: () => void;
   onStartNarration: () => void;
   narrationReady: boolean;
   busy?: boolean;
+  onRequestUnlock?: () => void;
+  unlockLabel?: string;
+  onReset?: () => void;
+  extras?: React.ReactNode;
 };
 
 export function ConsultationImmersive({
@@ -46,10 +49,13 @@ export function ConsultationImmersive({
   highlightedPositions,
   onSelectCard,
   chapterText,
-  onTogglePresentation,
   onStartNarration,
   narrationReady,
   busy = false,
+  onRequestUnlock,
+  unlockLabel,
+  onReset,
+  extras,
 }: ConsultationImmersiveProps) {
   const total = session.cardsDrawn.length;
   const spread = session.spread || "line3";
@@ -295,15 +301,6 @@ export function ConsultationImmersive({
           >
             Como funciona
           </button>
-          <button
-            type="button"
-            onClick={onTogglePresentation}
-            className={styles.btnToggleView}
-            aria-label="Alternar para visão normal de mesa"
-          >
-            <span aria-hidden="true">✦</span>
-            <span>Visão normal</span>
-          </button>
         </div>
       </header>
 
@@ -481,6 +478,15 @@ export function ConsultationImmersive({
               </button>
             )}
           </div>
+
+          {onRequestUnlock && (
+            <div className={styles.unlockRow}>
+              <button type="button" onClick={onRequestUnlock} className={styles.unlockBtn}>
+                <span aria-hidden="true">✦</span>
+                <span>{unlockLabel ?? "Abrir leitura completa"}</span>
+              </button>
+            </div>
+          )}
 
           {/* Bottom Dock: Large Glowing Deck at bottom-left, Large Avatar button at bottom-right */}
           <div className={styles.bottomDock}>
@@ -814,19 +820,24 @@ export function ConsultationImmersive({
             <SoundscapeControls persona={session.persona} sessionId={session.id} />
           </div>
 
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "12px" }}>
-            <button
-              type="button"
-              onClick={() => {
-                optionsDialog.current?.close();
-                onTogglePresentation();
-              }}
-              className={styles.btnSwitchNormalModal}
-            >
-              <span aria-hidden="true">✦</span>
-              <span>Alternar para visão normal ↗</span>
-            </button>
-          </div>
+          {(extras || onReset) && (
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "12px", display: "grid", gap: "12px" }}>
+              {extras}
+              {onReset && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    optionsDialog.current?.close();
+                    onReset();
+                  }}
+                  className={styles.actionBtn}
+                  style={{ width: "100%" }}
+                >
+                  Realizar nova leitura
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <button
           type="button"

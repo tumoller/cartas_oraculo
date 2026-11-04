@@ -12,7 +12,6 @@ Experiência de interpretação simbólica Lenormand com três estilos, tiragens
 | Ambiente, execução e diagnóstico | [Operação](docs/OPERACAO-E-CONFIGURACAO.md) |
 | Oferta inicial, revisão editorial e conteúdos | [Lançamento e conteúdos](docs/LANCAMENTO-E-CONTEUDOS.md) |
 | Verificações e limites do levantamento | [Evidências de 26/10](docs/testes/2026-10-26-LEVANTAMENTO.md) |
-| Registros anteriores preservados | [Arquivo histórico](docs/archive/README.md) |
 
 ## Executar localmente
 
@@ -30,6 +29,4 @@ Abra o endereço informado pelo Next. Narração exige worker separado. Preparar
 - Um assunto tem um documento responsável. Atualize sua seção, sem acrescentar sucessivas retomadas contraditórias.
 - Estado registra entrega e prioridade; arquitetura explica funcionamento; operação orienta execução; lançamento cuida de oferta e conteúdo.
 - Evidência datada registra o que foi verificado. Teste local, commit, deploy e funcionamento público são estados diferentes.
-- Histórico não substitui os guias atuais. Não duplicar atualizações no arquivo.
 - Não registrar credenciais, dados pessoais de consultas ou URLs assinadas.
-- Subtarefas de agentes usam GPT-6 Sol com esforço médio, nunca alto ou acima, conforme orientação do usuário nesta sessão.

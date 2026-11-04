@@ -325,6 +325,27 @@
   animation: land 0.45s ease-out both;
 }
 
+.chipRow {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.chapterChip {
+  max-width: 58vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.fanMany .fanCard {
+  width: 44px;
+  margin: 0 -8px;
+}
+
 .mesaChip {
   min-height: 34px;
   padding: 0 14px;
@@ -527,8 +548,20 @@
   animation: riseFromDeck 0.6s cubic-bezier(0.2, 0.8, 0.25, 1) both;
 }
 
-.revealQuick .revealCard {
-  width: min(44vw, 210px);
+.placeBtn {
+  position: relative;
+  overflow: hidden;
+}
+
+.placeTimer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--gold);
+  transform-origin: left;
+  animation: drain 3.4s linear both;
 }
 
 .revealFlip {
@@ -972,6 +1005,11 @@
   0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
   35% { opacity: 1; }
   100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; }
+}
+
+@keyframes drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
 }
 
 @keyframes sheetUp {

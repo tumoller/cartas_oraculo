@@ -60,6 +60,8 @@ function cardName(card: Card) {
 }
 
 const DUST = Array.from({ length: 14 }, (_, index) => index);
+// Big spreads place each revealed card by themselves after this long (keep in sync with .placeTimer in the CSS).
+const REVEAL_AUTO_MS = 3400;
 
 export function ConsultationImmersive({
   session,
@@ -192,7 +194,7 @@ export function ConsultationImmersive({
   const revealPosition = revealCard?.position ?? null;
   useEffect(() => {
     if (revealPosition === null || !bigSpread) return;
-    const timer = window.setTimeout(() => dismissRef.current(), 1900);
+    const timer = window.setTimeout(() => dismissRef.current(), REVEAL_AUTO_MS);
     return () => window.clearTimeout(timer);
   }, [revealPosition, bigSpread]);
 
@@ -236,7 +238,10 @@ export function ConsultationImmersive({
   const chapterTitle = chapter === chapters.length ? "Síntese da mesa" : chapters[chapter]?.title || "Sua leitura";
   const opened = session.cardsDrawn.filter((card) => card.position <= revealed);
   // Mobile table: small spreads keep every position on the table; big ones show the latest cards and the full table lives in a sheet.
-  const tableCards = bigSpread && !isDesktop ? opened.slice(-5) : session.cardsDrawn;
+  // While drawing, the fan shows the latest cards; once the table is complete it shows the cards of the part being read.
+  const chapterCards = opened.filter((card) => highlightedPositions.includes(card.position));
+  const followChapter = revealed >= total && chapterCards.length > 0 && chapterCards.length <= 9;
+  const tableCards = bigSpread && !isDesktop ? (followChapter ? chapterCards : opened.slice(-5)) : session.cardsDrawn;
   const chapterChips = bigSpread ? [...chapters.map((item) => item.title), "Síntese"] : [];
 
   // What the oracle "says" in the caption: one short line, always about the next step.
@@ -410,7 +415,7 @@ export function ConsultationImmersive({
             )
           ) : (
             <div className={styles.recent}>
-              <div className={styles.recentFan} role="list" aria-label="Últimas cartas tiradas">
+              <div className={`${styles.recentFan} ${tableCards.length > 5 ? styles.fanMany : ""}`} role="list" aria-label={followChapter ? `Cartas de ${chapterTitle}` : "Últimas cartas tiradas"}>
                 {tableCards.map((card, index) => (
                   <button
                     key={card.position}
@@ -426,9 +431,20 @@ export function ConsultationImmersive({
                   </button>
                 ))}
               </div>
-              <button type="button" className={styles.mesaChip} onClick={() => mesaDialog.current?.showModal()}>
-                Ver mesa · {revealed}/{total}
-              </button>
+              <div className={styles.chipRow}>
+                <button type="button" className={styles.mesaChip} onClick={() => mesaDialog.current?.showModal()}>
+                  Ver mesa · {revealed}/{total}
+                </button>
+                {/* Which part the narration/text refers to; tapping opens the table to switch parts. */}
+                <button
+                  type="button"
+                  className={`${styles.mesaChip} ${styles.chapterChip}`}
+                  onClick={() => mesaDialog.current?.showModal()}
+                  aria-label={`Lendo: ${chapterTitle}. Toque para trocar o trecho.`}
+                >
+                  <span aria-hidden="true">✦</span> {chapterTitle}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -485,7 +501,7 @@ export function ConsultationImmersive({
       {revealCard && (
         <div
           key={revealCard.position}
-          className={`${styles.reveal} ${bigSpread ? styles.revealQuick : ""}`}
+          className={styles.reveal}
           onClick={dismissReveal}
           role="dialog"
           aria-modal="false"
@@ -502,12 +518,12 @@ export function ConsultationImmersive({
           <div className={styles.revealInfo}>
             <small>Carta {revealCard.position}</small>
             <h2>{cardName(revealCard)}</h2>
-            {!bigSpread && cardNote && <p>{cardNote}</p>}
-            {!bigSpread && (
-              <button type="button" className={styles.ghostBtn} onClick={(event) => { event.stopPropagation(); dismissReveal(); }}>
-                Colocar na mesa
-              </button>
-            )}
+            {cardNote && <p>{cardNote}</p>}
+            <button type="button" className={`${styles.ghostBtn} ${styles.placeBtn}`} onClick={(event) => { event.stopPropagation(); dismissReveal(); }}>
+              Colocar na mesa
+              {/* Big spreads place the card by themselves; the bar shows how long is left. */}
+              {bigSpread && <span className={styles.placeTimer} aria-hidden="true" />}
+            </button>
           </div>
         </div>
       )}

@@ -15,7 +15,7 @@ function renderVoice(voice, resumable) {
   const audio = { getVoiceState: () => voice, canResumeCurrentVoice: () => resumable, isAudioPlaying: () => false, getChapterAudioState: () => ({ status: 'not_started' }), pauseCurrentVoice() {}, resumeCurrentVoice() {} };
   const overrides = {
     '@/lib/consultation-audio': audio,
-    '@/lib/scene-assets': { sceneAssets: () => ({ close: '/avatar.png' }) },
+    '@/lib/scene-assets': { sceneAssets: () => ({ close: '/avatar.png' }), sceneLoops: () => ({}) },
     '@/lib/sound-preference': { useSoundPreference: () => true },
     '@/lib/reading-font': {},
     './SoundscapeControls': { SoundscapeControls: () => null },

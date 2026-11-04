@@ -99,7 +99,6 @@ export function ReadingBoard({
     setPosition(next);
     if (next !== revealed + 1) return;
     setRevealed(next);
-    setEnlargedPosition(next);
     if (!revealedEvents.current.has(next)) {
       revealedEvents.current.add(next);
       window.dispatchEvent(

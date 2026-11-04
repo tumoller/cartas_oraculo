@@ -245,7 +245,6 @@ export function SpreadBoard({
     const position = revealed + 1;
     setRevealed(position);
     setSelected(position);
-    setEnlargedPosition(position);
     window.dispatchEvent(
       new CustomEvent("oracle-reveal", {
         detail: { sessionId: session.id, position, total: session.cardsDrawn.length },

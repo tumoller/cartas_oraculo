@@ -18,7 +18,8 @@
 .oracle-live-immersive:not([open]) {
   position: fixed;
   z-index: 30;
-  bottom: max(0.6rem, env(safe-area-inset-bottom));
+  /* Top of the scene: the bottom belongs to the deck. */
+  top: calc(env(safe-area-inset-top) + 66px);
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
@@ -67,7 +68,7 @@ body:has(.oracle-live-immersive[open]) [data-immersive-focus] {
 @media (min-width: 1024px) {
   .oracle-live-immersive:not([open]) {
     left: 73%;
-    bottom: 1rem;
+    top: 22px;
   }
   .oracle-live-immersive[open] {
     left: 50%;

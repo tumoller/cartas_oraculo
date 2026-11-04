@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ReadingSessionPayload } from "@/types";
-import { sceneAssets } from "@/lib/scene-assets";
+import { sceneAssets, sceneLoops, type OracleState } from "@/lib/scene-assets";
 import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
 import { getReadingFontSize, setReadingFontSize } from "@/lib/reading-font";
 import { SoundscapeControls } from "./SoundscapeControls";
@@ -17,6 +17,8 @@ import {
   type VoiceState,
 } from "@/lib/consultation-audio";
 import styles from "./ConsultationImmersive.module.css";
+
+type Card = ReadingSessionPayload["cardsDrawn"][number];
 
 export type ConsultationImmersiveProps = {
   session: ReadingSessionPayload;
@@ -39,6 +41,26 @@ export type ConsultationImmersiveProps = {
   extras?: React.ReactNode;
 };
 
+const SPREAD_LABEL: Record<string, string> = {
+  line3: "Tiragem de 3 cartas",
+  line5: "Tiragem de 5 cartas",
+  box9: "Tiragem de 9 cartas",
+  grand36: "Mesa Real · 36 cartas",
+};
+
+/** Resized, modern-format card art through the Next image optimizer (falls back to the raw file). */
+function cardSrc(card: Card, width: 256 | 828) {
+  const raw = card.imageUrl || `/cards/cigano/card-${card.id}.jpg`;
+  if (!raw.startsWith("/")) return raw;
+  return `/_next/image?url=${encodeURIComponent(raw)}&w=${width}&q=75`;
+}
+
+function cardName(card: Card) {
+  return card.name?.replace(/^\d+\.\s*/, "") || "Carta";
+}
+
+const DUST = Array.from({ length: 14 }, (_, index) => index);
+
 export function ConsultationImmersive({
   session,
   revealed,
@@ -49,6 +71,7 @@ export function ConsultationImmersive({
   highlightedPositions,
   onSelectCard,
   chapterText,
+  cardNote,
   onStartNarration,
   narrationReady,
   busy = false,
@@ -59,15 +82,19 @@ export function ConsultationImmersive({
 }: ConsultationImmersiveProps) {
   const total = session.cardsDrawn.length;
   const spread = session.spread || "line3";
+  const bigSpread = spread === "box9" || spread === "grand36";
+  const lineSize = spread === "grand36" ? 9 : spread === "box9" ? 3 : 0;
   const art = sceneAssets(session.persona);
+  const loops = sceneLoops(session.persona);
   const sound = useSoundPreference();
 
-  // Dialog refs
-  const helpDialog = useRef<HTMLDialogElement>(null);
+  const menuDialog = useRef<HTMLDialogElement>(null);
   const textDialog = useRef<HTMLDialogElement>(null);
-  const optionsDialog = useRef<HTMLDialogElement>(null);
+  const mesaDialog = useRef<HTMLDialogElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const speakingLayer = useRef<HTMLDivElement>(null);
   const haloRef = useRef<HTMLDivElement>(null);
-  const optionsButtonRef = useRef<HTMLButtonElement>(null);
+  const welcomePlayer = useRef<HTMLAudioElement | null>(null);
 
   const activeChapterId = useMemo(() => {
     if (spread === "line5") return "synthesis";
@@ -75,67 +102,63 @@ export function ConsultationImmersive({
     return chapters[chapter]?.id || "section1";
   }, [spread, chapter, chapters]);
 
-  // Audio & narration state
   const [voice, setVoice] = useState<VoiceState | null>(() => getVoiceState());
   const [chapterAudioStatus, setChapterAudioStatus] = useState<ChapterAudioStatus>(
     () => getChapterAudioState(session.id, activeChapterId).status
   );
-  const [dismissedFocusChapter, setDismissedFocusChapter] = useState<string | null>(null);
   const [readingFontSize, setReadingFontSizeState] = useState(18);
   const [playingWelcome, setPlayingWelcome] = useState(false);
-  const welcomePlayer = useRef<HTMLAudioElement | null>(null);
-
-  // Mobile line selection for 36 cards
-  const [mobileLine, setMobileLine] = useState(0); // 0..3 for lines 1..4
   const [isDesktop, setIsDesktop] = useState(false);
-  const prevRevealed = useRef(revealed);
-  // The previous value is only used to identify the newly revealed card.
-  // eslint-disable-next-line react-hooks/refs
-  const newlyRevealed = revealed > prevRevealed.current ? revealed : null;
+  // Cards already "seen": a reveal overlay shows while revealed > seen. Starts at revealed so a resumed reading does not replay.
+  const [seen, setSeen] = useState(revealed);
 
-  useEffect(() => {
-    prevRevealed.current = revealed;
-  }, [revealed]);
+  const isNarrationPlaying = Boolean(voice?.active && voice?.kind === "chapter");
+  const canResumeChapter = Boolean(voice?.kind === "chapter" && !voice.active && canResumeCurrentVoice());
+  const isPreparingAudio =
+    narrationReady && sound === true && (chapterAudioStatus === "pending" || chapterAudioStatus === "generating");
+  const revealCard = revealed > seen ? session.cardsDrawn[revealed - 1] ?? null : null;
 
-  // Viewport breakpoint detection
+  const oracleState: OracleState = revealCard
+    ? "revealing"
+    : isNarrationPlaying
+      ? "speaking"
+      : isPreparingAudio || busy
+        ? "concentrating"
+        : "idle";
+
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     // Synchronize the client viewport after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDesktop(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    const handler = (event: MediaQueryListEvent) => setIsDesktop(event.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Voice & chapter audio state subscription
+  useEffect(() => {
+    // Restore the browser preference after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReadingFontSizeState(getReadingFontSize());
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setChapterAudioStatus(getChapterAudioState(session.id, activeChapterId).status);
-
-    const onVoice = (event: Event) => {
-      const next = (event as CustomEvent<VoiceState>).detail;
-      setVoice(next);
-    };
+    const onVoice = (event: Event) => setVoice((event as CustomEvent<VoiceState>).detail);
     const onChapterState = (event: Event) => {
-      const detail = (
-        event as CustomEvent<{
-          sessionId: string;
-          chapter: string;
-          state: { status: ChapterAudioStatus };
-        }>
-      ).detail;
-      if (detail?.sessionId === session.id && detail.chapter === activeChapterId) {
-        setChapterAudioStatus(detail.state.status);
-      }
+      const detail = (event as CustomEvent<{ sessionId: string; chapter: string; state: { status: ChapterAudioStatus } }>).detail;
+      if (detail?.sessionId === session.id && detail.chapter === activeChapterId) setChapterAudioStatus(detail.state.status);
     };
+    // Voice level drives the "speaking" still (a cheap lip-sync) and the halo, straight on the DOM to avoid re-renders.
     const onVoiceLevel = (event: Event) => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       const raw = (event as CustomEvent<{ level: number }>).detail?.level;
       const level = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
+      if (speakingLayer.current) speakingLayer.current.style.opacity = String(Math.min(1, level * 2.4));
       if (haloRef.current) {
-        haloRef.current.style.opacity = level > 0.02 ? String(0.25 + level * 0.55) : "0";
-        haloRef.current.style.transform = `scale(${1.02 + level * 0.15})`;
+        haloRef.current.style.opacity = level > 0.02 ? String(0.2 + level * 0.5) : "0";
+        haloRef.current.style.transform = `scale(${1 + level * 0.12})`;
       }
     };
     window.addEventListener("oracle-voice-state", onVoice);
@@ -148,88 +171,55 @@ export function ConsultationImmersive({
     };
   }, [session.id, activeChapterId]);
 
-  // Sync font size
   useEffect(() => {
-    const saved = getReadingFontSize();
-    // Restore the browser preference after hydration.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setReadingFontSizeState(saved);
-  }, []);
+    if (!isNarrationPlaying && speakingLayer.current) speakingLayer.current.style.opacity = "0";
+  }, [isNarrationPlaying]);
 
-  // Auto-advance mobile line when revealing across 9-card boundary (9->10, 18->19, 27->28)
-  useEffect(() => {
-    if (spread === "grand36" && !isDesktop && newlyRevealed) {
-      // Synchronize the visible line when a card is revealed externally.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (newlyRevealed >= 1 && newlyRevealed <= 9 && mobileLine !== 0) setMobileLine(0);
-      else if (newlyRevealed >= 10 && newlyRevealed <= 18 && mobileLine !== 1) setMobileLine(1);
-      else if (newlyRevealed >= 19 && newlyRevealed <= 27 && mobileLine !== 2) setMobileLine(2);
-      else if (newlyRevealed >= 28 && newlyRevealed <= 36 && mobileLine !== 3) setMobileLine(3);
+  const dismissReveal = () => {
+    setSeen(revealed);
+    // Completing a line (or the whole table) on a big spread brings up the full table.
+    if (lineSize && revealed > 0 && (revealed % lineSize === 0 || revealed === total) && !isDesktop) {
+      mesaDialog.current?.showModal();
     }
-  }, [newlyRevealed, spread, isDesktop, mobileLine]);
+  };
 
-  // Keep mobileLine in sync when desktop chapter changes
+  const dismissRef = useRef(dismissReveal);
   useEffect(() => {
-    if (spread === "grand36" && chapter >= 0 && chapter < 4) {
-      // A chapter can also change in the shared normal presentation.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setMobileLine(chapter);
-    }
-  }, [chapter, spread]);
+    dismissRef.current = dismissReveal;
+  });
 
-  // When chapter ends, reset dismissedFocusChapter
+  // Big spreads: the reveal only flashes the card so 36 reveals don't need 36 extra taps.
+  const revealPosition = revealCard?.position ?? null;
   useEffect(() => {
-    const onEnded = () => {
-      setDismissedFocusChapter(null);
-    };
-    window.addEventListener("oracle-chapter-ended", onEnded);
-    return () => window.removeEventListener("oracle-chapter-ended", onEnded);
-  }, []);
+    if (revealPosition === null || !bigSpread) return;
+    const timer = window.setTimeout(() => dismissRef.current(), 1900);
+    return () => window.clearTimeout(timer);
+  }, [revealPosition, bigSpread]);
 
-  // Determine active chapter ID, preparing status, and playing status
-  const isNarrationPlaying = Boolean(voice?.active && voice?.kind === "chapter");
-  const canResumeChapter = Boolean(voice?.kind === "chapter" && canResumeCurrentVoice());
-  const isPreparingAudio =
-    narrationReady &&
-    sound === true &&
-    (chapterAudioStatus === "pending" || chapterAudioStatus === "generating");
-  const focusChapterKey = voice?.chapter || activeChapterId;
-
-  // Focus overlay activates both when preparing chapter audio (eyes closed concentrating) and when playing/paused!
-  const isFocusActive = Boolean(
-    ((voice?.kind === "chapter" && (voice.active || canResumeCurrentVoice())) || isPreparingAudio) &&
-      dismissedFocusChapter !== focusChapterKey
-  );
-
-  const handleReturnToTable = () => {
-    setDismissedFocusChapter(focusChapterKey || "active");
+  const drawCard = () => {
+    if (busy || revealed >= total) return;
+    try { navigator.vibrate?.(14); } catch { /* not supported */ }
+    onRevealNext();
   };
 
   const handleToggleAudio = () => {
-    if (isAudioPlaying()) {
-      pauseCurrentVoice();
-    } else {
-      void resumeCurrentVoice(sound === true);
-    }
+    if (isAudioPlaying()) pauseCurrentVoice();
+    else void resumeCurrentVoice(sound === true);
   };
 
   const handleRequestOrPlayNarration = () => {
-    setDismissedFocusChapter(null);
     onStartNarration();
-    window.dispatchEvent(
-      new CustomEvent("oracle-immersive-play-request", {
-        detail: { sessionId: session.id, chapter: activeChapterId },
-      })
-    );
+    window.dispatchEvent(new CustomEvent("oracle-immersive-play-request", { detail: { sessionId: session.id, chapter: activeChapterId } }));
   };
 
   const playWelcomeAudio = () => {
-    if (!welcomePlayer.current) return;
-    if (!welcomePlayer.current.paused) {
-      welcomePlayer.current.pause();
+    const player = welcomePlayer.current;
+    if (!player) return;
+    if (!player.paused) {
+      player.pause();
       setPlayingWelcome(false);
     } else {
-      void welcomePlayer.current.play().then(() => setPlayingWelcome(true)).catch(() => {});
+      void player.play().then(() => setPlayingWelcome(true)).catch(() => {});
     }
   };
 
@@ -238,620 +228,399 @@ export function ConsultationImmersive({
     setReadingFontSizeState(size);
   };
 
-  // Determine cards to display based on spread and viewport
-  const displayCards = useMemo(() => {
-    if (spread === "grand36" && !isDesktop) {
-      // 36 cards on mobile: show only the 9 cards of the active line
-      const start = mobileLine * 9;
-      return session.cardsDrawn.slice(start, start + 9);
-    }
-    return session.cardsDrawn;
-  }, [spread, isDesktop, mobileLine, session.cardsDrawn]);
+  const closeMenu = () => {
+    menuDialog.current?.close();
+    menuButtonRef.current?.focus();
+  };
 
-  // Title calculation
-  const sceneTitle = useMemo(() => {
-    if (spread === "line3") return "Sua leitura";
-    if (chapters[chapter]?.title) return chapters[chapter].title;
-    if (spread === "grand36") return `Linha ${mobileLine + 1} · Mesa Real`;
-    if (spread === "box9") return `Linha ${chapter + 1} · Tiragem de 9`;
-    return "Sua leitura";
-  }, [spread, chapters, chapter, mobileLine]);
+  const chapterTitle = chapter === chapters.length ? "Síntese da mesa" : chapters[chapter]?.title || "Sua leitura";
+  const opened = session.cardsDrawn.filter((card) => card.position <= revealed);
+  // Mobile table: small spreads keep every position on the table; big ones show the latest cards and the full table lives in a sheet.
+  const tableCards = bigSpread && !isDesktop ? opened.slice(-5) : session.cardsDrawn;
+  const chapterChips = bigSpread ? [...chapters.map((item) => item.title), "Síntese"] : [];
 
-  // Portrait file url
-  const portraitUrl = art.close || "/avatars/cigana-close-realista.png";
+  // What the oracle "says" in the caption: one short line, always about the next step.
+  const caption = revealCard
+    ? bigSpread ? `Carta ${revealCard.position}: ${cardName(revealCard)}` : null
+    : canResumeChapter
+      ? "Narração pausada"
+      : isPreparingAudio
+        ? "Estou me concentrando nas suas cartas…"
+        : isNarrationPlaying
+          ? null
+          : onRequestUnlock
+            ? "Há mais cartas esperando por você na mesa."
+            : revealed === 0
+              ? "Respire fundo. Quando sentir que é a hora, toque no baralho."
+              : revealed < total
+                ? "Continue. A próxima carta já está esperando."
+                : narrationReady
+                  ? "Sua mesa está completa. Quer ouvir o que ela diz?"
+                  : "Sua mesa está completa.";
+
+  const isRevealOpen = (position: number) => position <= revealed;
+  const lineOf = (position: number) => (lineSize ? Math.ceil(position / lineSize) - 1 : 0);
+
+  const renderMesaGrid = (compact: boolean) => (
+    <div
+      className={`${styles.mesaGrid} ${spread === "grand36" ? styles.mesa36 : spread === "box9" ? styles.mesa9 : styles.mesaLine} ${compact ? styles.mesaCompact : ""}`}
+      role="list"
+      aria-label="Mesa completa"
+    >
+      {session.cardsDrawn.map((card) => {
+        const open = isRevealOpen(card.position);
+        const lit = highlightedPositions.length === 0 || highlightedPositions.includes(card.position);
+        return (
+          <button
+            key={card.position}
+            type="button"
+            role="listitem"
+            disabled={!open}
+            onClick={() => {
+              mesaDialog.current?.close();
+              onSelectCard(card.position);
+            }}
+            className={`${styles.mesaCard} ${open ? styles.mesaOpen : ""} ${open && !lit ? styles.mesaDim : ""}`}
+            aria-label={open ? `Carta ${card.position}: ${cardName(card)}. Toque para ampliar.` : `Posição ${card.position} fechada.`}
+          >
+            {open ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={cardSrc(card, 256)} alt="" loading="lazy" decoding="async" />
+            ) : (
+              <span>{card.position}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div
-      className={`${styles.scene} ${spread === "grand36" ? styles.full36 : styles.smallSpread}`}
-      style={{
-        "--portrait-url": `url("${portraitUrl}")`,
-        "--scene-url": `url("${art.scene}")`,
-        "--scene-concentrating": `url("${art.sceneConcentrating}")`,
-        "--scene-expressing": `url("${art.sceneExpressing}")`,
-      } as React.CSSProperties}
+      className={`${styles.scene} ${bigSpread ? styles.sceneBig : ""}`}
+      data-state={oracleState}
+      style={{ "--scene-url": `url("${art.scene}")`, "--reading-size": `${readingFontSize}px` } as React.CSSProperties}
     >
-      <div className={styles.portrait} aria-hidden="true">
-        <div className={styles.sceneBase} />
-        <div
-          className={`${styles.sceneExpression} ${styles.sceneConcentrating} ${
-            isPreparingAudio ? styles.forceConcentrating : ""
-          }`}
-        />
-        <div
-          className={`${styles.sceneExpression} ${styles.sceneExpressing} ${
-            isPreparingAudio ? styles.suppressExpression : ""
-          }`}
-        />
-      </div>
-      <div className={styles.sceneShade} aria-hidden="true" />
-      <div ref={haloRef} className={styles.halo} aria-hidden="true" />
+      {/* Desktop ambience: the scene itself, blurred, fills the room behind the stage. */}
+      <div className={styles.room} aria-hidden="true" />
 
-      {/* Top Header */}
-      <header className={styles.top}>
-        <div className={styles.topTitle}>
-          <small>UMA CONVERSA COM O ORÁCULO</small>
-          <h1>{session.persona} · {session.userName}</h1>
-        </div>
-        <div className={styles.topActions}>
-          <button
-            type="button"
-            onClick={() => helpDialog.current?.showModal()}
-            className={styles.btnHelp}
-            aria-label="Abrir ajuda e instruções"
-          >
-            Como funciona
-          </button>
-        </div>
-      </header>
-
-      {/* Main Table Content (remains visible on the right half on Desktop even during narration focus!) */}
-      <main
-        data-immersive-table
-        className={`${styles.bottom} ${isFocusActive ? styles.hiddenOnMobileFocus : ""}`}
-      >
-        {/* Cards Grid - placed directly over the wooden table surface below the face */}
-        <div
-          className={`${styles.cards} ${
-            spread === "line3"
-              ? styles.grid3
-              : spread === "line5"
-              ? styles.grid5
-              : spread === "box9" || (spread === "grand36" && !isDesktop)
-              ? styles.grid9
-              : styles.grid36
-          }`}
-          role="region"
-          aria-label="Mesa de cartas"
-        >
-          {displayCards.map((card) => {
-            const isOpened = card.position <= revealed;
-            const isNewlyRevealed = card.position === newlyRevealed;
-            const isHighlighted =
-              highlightedPositions.length === 0 || highlightedPositions.includes(card.position);
-            const isDimmed = isOpened && highlightedPositions.length > 0 && !isHighlighted;
-
+      {/* The oracle. One layer per state; video loops replace stills when they exist. */}
+      <div className={styles.stage} aria-hidden="true">
+        <div className={styles.stageInner}>
+          {(["idle", "concentrating", "speaking", "revealing"] as const).map((state) => {
+            const still = state === "concentrating" ? art.sceneConcentrating : state === "speaking" ? null : state === "revealing" ? art.sceneConcentrating : art.scene;
+            const loop = loops[state];
+            const active = oracleState === state || (state === "idle" && oracleState === "speaking" && !loops.speaking);
+            if (loop) {
+              return (
+                <video
+                  key={state}
+                  className={`${styles.layer} ${active ? styles.layerOn : ""}`}
+                  src={loop}
+                  poster={still ?? art.scene}
+                  muted
+                  loop
+                  playsInline
+                  autoPlay
+                  preload={state === "idle" ? "auto" : "metadata"}
+                />
+              );
+            }
+            if (!still) return null;
             return (
-              <button
-                key={card.position}
-                type="button"
-                disabled={!isOpened && card.position !== revealed + 1}
-                onClick={() => {
-                  if (isOpened) onSelectCard(card.position);
-                  else if (card.position === revealed + 1) onRevealNext();
-                }}
-                className={`${styles.cardSlot} ${isOpened ? styles.opened : styles.closed} ${
-                  isHighlighted ? styles.activeLine : ""
-                } ${isDimmed ? styles.dimmed : ""} ${isNewlyRevealed ? styles.revealing : ""}`}
-                aria-label={
-                  isOpened
-                    ? `Carta ${card.position}: ${card.name?.replace(/^\d+\.\s*/, "") || "Carta"}. Toque para ampliar.`
-                    : `Posição ${card.position} fechada.`
-                }
-              >
-                {isOpened ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={card.imageUrl || `/cards/cigano/card-${card.id}.jpg`}
-                    alt={card.name || `Carta ${card.position}`}
-                    loading="lazy"
-                  />
-                ) : (
-                  <span>{card.position}</span>
-                )}
-              </button>
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={state}
+                className={`${styles.layer} ${active ? styles.layerOn : ""}`}
+                src={still}
+                alt=""
+                decoding="async"
+                fetchPriority={state === "idle" ? "high" : "low"}
+              />
             );
           })}
-        </div>
-
-        {/* Footer Panel: Reading Meta + Wine Pill Line Tabs + Prominent Deck/Avatar Dock */}
-        <div className={styles.footerPanel}>
-          <div className={styles.readingMeta}>
-            <span className={styles.eyebrow}>
-              {spread === "grand36"
-                ? "MESA REAL · 36 CARTAS"
-                : spread === "box9"
-                ? "TIRAGEM DE 9 CARTAS"
-                : spread === "line5"
-                ? "TIRAGEM DE 5 CARTAS"
-                : "TIRAGEM DE 3 CARTAS"}
-            </span>
-            <h2 className={styles.title}>{sceneTitle}</h2>
-            <p className={styles.subtitle}>
-              · {revealed === total
-                ? "Mesa completa (toque na carta para ampliar)"
-                : `${revealed} de ${total} cartas reveladas`}
-            </p>
-          </div>
-
-          {/* Line Navigation and Text/Audio Access Controls */}
-          <div className={styles.controlsRow}>
-            {spread === "grand36" && (
-              <div className={styles.lineTabs} role="tablist" aria-label="Linhas da mesa real">
-                {[0, 1, 2, 3].map((idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    role="tab"
-                    aria-selected={isDesktop ? chapter === idx : mobileLine === idx}
-                    onClick={() => {
-                      if (isDesktop) onSelectChapter(idx);
-                      else setMobileLine(idx);
-                    }}
-                    className={`${styles.lineTab} ${
-                      (isDesktop ? chapter === idx : mobileLine === idx) ? styles.active : ""
-                    }`}
-                  >
-                    Linha {idx + 1}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {spread === "box9" && (
-              <div className={styles.lineTabs} role="tablist" aria-label="Linhas da tiragem de 9">
-                {[0, 1, 2].map((idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    role="tab"
-                    aria-selected={chapter === idx}
-                    onClick={() => onSelectChapter(idx)}
-                    className={`${styles.lineTab} ${chapter === idx ? styles.active : ""}`}
-                  >
-                    Linha {idx + 1}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {chapterText && (
-              <button
-                type="button"
-                onClick={() => textDialog.current?.showModal()}
-                className={styles.actionBtn}
-                aria-label="Ver texto da interpretação"
-              >
-                Ver texto
-              </button>
-            )}
-
-            {isNarrationPlaying ? (
-              <button
-                type="button"
-                onClick={handleToggleAudio}
-                className={styles.listenBtn}
-              >
-                Ⅱ Pausar leitura
-              </button>
-            ) : canResumeChapter ? (
-              <button
-                type="button"
-                onClick={handleToggleAudio}
-                className={styles.listenBtn}
-              >
-                ▶ Continuar leitura
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleRequestOrPlayNarration}
-                disabled={!narrationReady}
-                className={`${styles.listenBtn} ${isPreparingAudio ? styles.listenBtnPreparing : ""}`}
-              >
-                {!narrationReady
-                  ? "Revele as cartas para ouvir"
-                  : isPreparingAudio
-                  ? "✦ Concentrando · Preparando voz…"
-                  : "▶ Ouvir esta leitura"}
-              </button>
-            )}
-
-            {(isNarrationPlaying || canResumeChapter || isPreparingAudio) && dismissedFocusChapter && (
-              <button
-                type="button"
-                onClick={() => setDismissedFocusChapter(null)}
-                className={styles.actionBtn}
-                style={{ borderColor: "#67e8f9", color: "#a5f3fc" }}
-                aria-label="Retornar ao foco na personagem"
-              >
-                ✦ Ver foco da leitura
-              </button>
-            )}
-          </div>
-
-          {onRequestUnlock && (
-            <div className={styles.unlockRow}>
-              <button type="button" onClick={onRequestUnlock} className={styles.unlockBtn}>
-                <span aria-hidden="true">✦</span>
-                <span>{unlockLabel ?? "Abrir leitura completa"}</span>
-              </button>
-            </div>
+          {/* Speaking still, modulated by the voice level while narration plays (no loop video yet). */}
+          {!loops.speaking && (
+            <div ref={speakingLayer} className={styles.speakingLayer} style={{ backgroundImage: `url("${art.sceneExpressing}")` }} />
           )}
-
-          {/* Bottom Dock: Large Glowing Deck at bottom-left, Large Avatar button at bottom-right */}
-          <div className={styles.bottomDock}>
-            <div className={styles.deckCluster}>
-              <button
-                type="button"
-                disabled={busy || revealed >= total}
-                onClick={onRevealNext}
-                className={`${styles.deckStack} ${revealed >= total ? styles.completed : ""}`}
-                aria-label={
-                  revealed >= total
-                    ? "Todas as cartas foram tiradas"
-                    : `Tirar próxima carta (${revealed + 1} de ${total})`
-                }
-              >
-                <span className={styles.deckSparkle} aria-hidden="true">✦</span>
-              </button>
-              <div className={styles.deckMeta}>
-                {revealed < total && (
-                  <span className={styles.deckBadge}>
-                    ✦ Clique no baralho
-                  </span>
-                )}
-                <span className={styles.deckPrompt}>
-                  {revealed >= total
-                    ? "Mesa completa"
-                    : busy
-                    ? "Revelando carta…"
-                    : `Tirar carta ${revealed + 1} de ${total}`}
-                </span>
-                <span className={styles.deckCount}>
-                  {revealed} de {total} cartas abertas
-                </span>
-              </div>
-            </div>
-
-            <div className={styles.avatarCluster}>
-              <button
-                ref={optionsButtonRef}
-                type="button"
-                onClick={() => optionsDialog.current?.showModal()}
-                className={styles.avatarBtn}
-                aria-label="Abrir controles da consulta e opções de áudio"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={portraitUrl} alt={session.persona} />
-                <span className={styles.avatarLabel}>Opções</span>
-              </button>
-            </div>
-          </div>
         </div>
-      </main>
+        <div className={styles.candlelight} />
+        <div className={styles.dust}>
+          {DUST.map((index) => <span key={index} style={{ "--i": index } as React.CSSProperties} />)}
+        </div>
+        <div ref={haloRef} className={styles.halo} />
+        <div className={styles.shade} />
+      </div>
 
-      {/* Character Focus & Concentration Overlay (during audio preparation OR active narration) */}
-      {isFocusActive && (
-        <section
-          className={styles.characterFocusContainer}
-          data-immersive-focus
-          aria-label="Foco na personagem durante a leitura"
+      <header className={styles.top}>
+        <div className={styles.topTitle}>
+          <small>{SPREAD_LABEL[spread] ?? "Consulta"}</small>
+          <span>{session.persona}</span>
+        </div>
+        <button
+          ref={menuButtonRef}
+          type="button"
+          onClick={() => menuDialog.current?.showModal()}
+          className={styles.menuBtn}
+          aria-label="Abrir menu da consulta"
         >
-          <div className={styles.focusTop}>
-            <span className={`${styles.focusBadge} ${isPreparingAudio && !isNarrationPlaying ? styles.focusBadgePreparing : ""}`}>
-              <span
-                className={isPreparingAudio && !isNarrationPlaying ? styles.pulseDotGold : styles.pulseDot}
-                aria-hidden="true"
-              />
-              <span>
-                {isNarrationPlaying
-                  ? "Ouvindo narração"
-                  : isPreparingAudio
-                  ? "Concentrando · Preparando sua leitura"
-                  : "Narração pausada"}
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={handleReturnToTable}
-              className={styles.actionBtn}
-              aria-label="Voltar à mesa de cartas"
-            >
-              {isDesktop ? "Ocultar destaque" : "Voltar à mesa"}
-            </button>
-          </div>
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
+        </button>
+      </header>
 
-          <div className={styles.focusCenter}>
-            <h2 className={styles.focusTitle}>{sceneTitle}</h2>
-            {isPreparingAudio && !isNarrationPlaying ? (
-              <>
-                <div className={styles.dealingCards} aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <p className={styles.focusStatusText}>
-                  Concentrando nas cartas deste trecho e preparando a narração. Assim que estiver pronta, os olhos se abrem e a leitura começa.
-                </p>
-              </>
-            ) : null}
+      <main className={styles.table} data-immersive-table>
+        {caption && (
+          <p key={caption} className={styles.caption} role="status" aria-live="polite">
+            {caption}
+          </p>
+        )}
 
-            <div className={styles.focusControls}>
-              {!isPreparingAudio || isNarrationPlaying || canResumeChapter ? (
-                <button
-                  type="button"
-                  onClick={handleToggleAudio}
-                  className={styles.listenBtn}
-                >
-                  {isAudioPlaying() ? "Ⅱ Pausar leitura" : "▶ Continuar leitura"}
-                </button>
-              ) : null}
-              {chapterText && (
-                <button
-                  type="button"
-                  onClick={() => textDialog.current?.showModal()}
-                  className={styles.actionBtn}
-                >
-                  Ver texto
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Related Cards Strip at the bottom */}
-          <div className={styles.focusStrip}>
-            <span className={styles.focusStripHeader}>Cartas deste trecho</span>
-            <div className={styles.focusCardList}>
-              {session.cardsDrawn
-                .filter(
-                  (card) =>
-                    highlightedPositions.length === 0 ||
-                    highlightedPositions.includes(card.position)
-                )
-                .map((card) => (
+        <div className={styles.tableTop}>
+          {(!bigSpread || isDesktop) ? (
+            isDesktop && bigSpread ? (
+              renderMesaGrid(false)
+            ) : (
+              <div className={`${styles.spreadRow} ${spread === "line5" ? styles.row5 : styles.row3}`} role="list" aria-label="Mesa de cartas">
+                {tableCards.map((card) => {
+                  const open = isRevealOpen(card.position);
+                  const next = card.position === revealed + 1;
+                  const lit = highlightedPositions.length === 0 || highlightedPositions.includes(card.position);
+                  return (
+                    <button
+                      key={card.position}
+                      type="button"
+                      role="listitem"
+                      disabled={!open && !next}
+                      onClick={() => (open ? onSelectCard(card.position) : drawCard())}
+                      className={`${styles.tableCard} ${open ? styles.tableOpen : next ? styles.tableNext : ""} ${open && !lit ? styles.tableDim : ""}`}
+                      aria-label={open ? `Carta ${card.position}: ${cardName(card)}. Toque para ampliar.` : `Posição ${card.position} fechada.`}
+                    >
+                      {open ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={cardSrc(card, 256)} alt="" decoding="async" />
+                      ) : (
+                        <span>{card.position}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <div className={styles.recent}>
+              <div className={styles.recentFan} role="list" aria-label="Últimas cartas tiradas">
+                {tableCards.map((card, index) => (
                   <button
                     key={card.position}
                     type="button"
+                    role="listitem"
                     onClick={() => onSelectCard(card.position)}
-                    className={styles.focusCardItem}
-                    aria-label={`Carta ${card.position}: ${card.name}. Toque para ampliar.`}
+                    className={styles.fanCard}
+                    style={{ "--k": index - (tableCards.length - 1) / 2 } as React.CSSProperties}
+                    aria-label={`Carta ${card.position}: ${cardName(card)}. Toque para ampliar.`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={card.imageUrl || `/cards/cigano/card-${card.id}.jpg`}
-                      alt={card.name || ""}
-                    />
-                    <span className={styles.focusCardNumber}>{card.position}</span>
+                    <img src={cardSrc(card, 256)} alt="" decoding="async" />
                   </button>
                 ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Help Dialog ("Como funciona") */}
-      <dialog
-        ref={helpDialog}
-        aria-labelledby="immersive-help-title"
-        className={styles.dialog}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") helpDialog.current?.close();
-        }}
-      >
-        <div className={styles.dialogHeader}>
-          <h2 id="immersive-help-title">Como funciona</h2>
-          <button
-            type="button"
-            onClick={() => helpDialog.current?.close()}
-            className={styles.dialogIconClose}
-            aria-label="Fechar ajuda"
-          >
-            ✕
-          </button>
-        </div>
-        <div className={styles.dialogScroll}>
-          <p>
-            A consulta oracular é uma experiência de reflexão pessoal e simbólica. Cada carta traz
-            arquétipos tradicionais para inspirar escolhas, clareza e diálogo interior.
-          </p>
-          <p style={{ marginTop: "10px" }}>
-            As cartas são reveladas sequencialmente clicando no baralho iluminado. Ao tocar em qualquer carta aberta, você pode
-            ampliá-la para ver sua arte e seu significado detalhado.
-          </p>
-          <p style={{ marginTop: "10px" }}>
-            Esta experiência é um suporte de introspecção e não substitui aconselhamento médico,
-            jurídico ou financeiro.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => helpDialog.current?.close()}
-          className={styles.dialogCloseBtn}
-        >
-          Entendi, voltar à consulta
-        </button>
-      </dialog>
-
-      {/* Text Dialog ("Ver texto") */}
-      <dialog
-        ref={textDialog}
-        aria-labelledby="immersive-text-title"
-        className={styles.dialog}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") textDialog.current?.close();
-        }}
-      >
-        <div className={styles.dialogHeader}>
-          <h2 id="immersive-text-title">{sceneTitle}</h2>
-          <button
-            type="button"
-            onClick={() => textDialog.current?.close()}
-            className={styles.dialogIconClose}
-            aria-label="Fechar texto"
-          >
-            ✕
-          </button>
-        </div>
-        <div className={styles.dialogScroll}>
-          <p style={{ whiteSpace: "pre-line" }}>
-            {chapterText || "A interpretação deste trecho estará disponível ao abrir as cartas correspondentes."}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => textDialog.current?.close()}
-          className={styles.dialogCloseBtn}
-        >
-          Fechar texto
-        </button>
-      </dialog>
-
-      {/* Options Dialog (Standardized across both views) */}
-      <dialog
-        ref={optionsDialog}
-        aria-labelledby="immersive-options-title"
-        className={styles.dialog}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            optionsDialog.current?.close();
-            optionsButtonRef.current?.focus();
-          }
-        }}
-      >
-        <div className={styles.dialogHeader}>
-          <h2 id="immersive-options-title">Controles da consulta</h2>
-          <button
-            type="button"
-            onClick={() => {
-              optionsDialog.current?.close();
-              optionsButtonRef.current?.focus();
-            }}
-            className={styles.dialogIconClose}
-            aria-label="Fechar opções"
-          >
-            ✕
-          </button>
-        </div>
-        <div className={styles.dialogScroll}>
-          <div style={{ marginBottom: "14px" }}>
-            <span style={{ fontSize: "12px", color: "#efcd8e", textTransform: "uppercase", fontWeight: 600 }}>
-              Som e narração
-            </span>
-            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-              <button
-                type="button"
-                onClick={() => setSoundPreference(true)}
-                className={styles.actionBtn}
-                style={{
-                  borderColor: sound === true ? "#f5d889" : "#b5966d",
-                  background: sound === true ? "rgba(124, 77, 50, 0.55)" : undefined,
-                  fontWeight: sound === true ? 700 : 500,
-                }}
-              >
-                Habilitar som
+              </div>
+              <button type="button" className={styles.mesaChip} onClick={() => mesaDialog.current?.showModal()}>
+                Ver mesa · {revealed}/{total}
               </button>
-              <button
-                type="button"
-                onClick={() => setSoundPreference(false)}
-                className={styles.actionBtn}
-                style={{
-                  borderColor: sound === false ? "#f5d889" : "#b5966d",
-                  background: sound === false ? "rgba(124, 77, 50, 0.55)" : undefined,
-                  fontWeight: sound === false ? 700 : 500,
-                }}
-              >
-                Desabilitar som
-              </button>
-            </div>
-            {sound === true && (
-              <button
-                type="button"
-                onClick={playWelcomeAudio}
-                className={styles.actionBtn}
-                style={{ marginTop: "8px", width: "100%" }}
-              >
-                {playingWelcome ? "Pausar acolhimento" : "Ouvir acolhimento"}
-              </button>
-            )}
-          </div>
-
-          <div style={{ marginBottom: "14px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "12px" }}>
-            <span style={{ fontSize: "12px", color: "#efcd8e", textTransform: "uppercase", fontWeight: 600 }}>
-              Tamanho do texto ({readingFontSize === 16 ? "menor" : readingFontSize === 18 ? "padrão" : readingFontSize === 20 ? "maior" : "extra grande"})
-            </span>
-            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-              <button
-                type="button"
-                disabled={readingFontSize === 16}
-                onClick={() => changeFontSize(Math.max(16, readingFontSize - 2))}
-                className={styles.actionBtn}
-              >
-                A−
-              </button>
-              <button
-                type="button"
-                disabled={readingFontSize === 22}
-                onClick={() => changeFontSize(Math.min(22, readingFontSize + 2))}
-                className={styles.actionBtn}
-              >
-                A+
-              </button>
-              <button
-                type="button"
-                onClick={() => changeFontSize(18)}
-                className={styles.actionBtn}
-              >
-                Padrão
-              </button>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "14px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "12px" }}>
-            <SoundscapeControls persona={session.persona} sessionId={session.id} />
-          </div>
-
-          {(extras || onReset) && (
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "12px", display: "grid", gap: "12px" }}>
-              {extras}
-              {onReset && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    optionsDialog.current?.close();
-                    onReset();
-                  }}
-                  className={styles.actionBtn}
-                  style={{ width: "100%" }}
-                >
-                  Realizar nova leitura
-                </button>
-              )}
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            optionsDialog.current?.close();
-            optionsButtonRef.current?.focus();
-          }}
-          className={styles.dialogCloseBtn}
+
+        <div className={styles.controls}>
+          {onRequestUnlock ? (
+            <button type="button" onClick={onRequestUnlock} className={styles.unlockBtn}>
+              <span aria-hidden="true">✦</span> {unlockLabel ?? "Abrir leitura completa"}
+            </button>
+          ) : isNarrationPlaying ? (
+            <button type="button" onClick={handleToggleAudio} className={styles.voiceBtn}>
+              <span className={styles.voiceWave} aria-hidden="true"><i /><i /><i /></span> Ⅱ Pausar leitura
+            </button>
+          ) : canResumeChapter ? (
+            <button type="button" onClick={handleToggleAudio} className={styles.voiceBtn}>
+              ▶ Continuar leitura
+            </button>
+          ) : narrationReady ? (
+            <button
+              type="button"
+              onClick={handleRequestOrPlayNarration}
+              disabled={isPreparingAudio}
+              className={`${styles.voiceBtn} ${isPreparingAudio ? styles.voicePreparing : ""}`}
+            >
+              {isPreparingAudio ? "✦ Preparando a voz…" : "▶ Ouvir esta leitura"}
+            </button>
+          ) : null}
+          {chapterText && (
+            <button type="button" onClick={() => textDialog.current?.showModal()} className={styles.ghostBtn}>
+              Ler texto
+            </button>
+          )}
+        </div>
+
+        <div className={styles.deckZone}>
+          <button
+            type="button"
+            disabled={busy || revealed >= total}
+            onClick={drawCard}
+            className={`${styles.deck} ${revealed >= total ? styles.deckDone : ""} ${busy ? styles.deckBusy : ""}`}
+            aria-label={revealed >= total ? "Todas as cartas foram tiradas" : `Tirar próxima carta (${revealed + 1} de ${total})`}
+          >
+            <span className={styles.deckCard} aria-hidden="true" />
+            <span className={styles.deckCard} aria-hidden="true" />
+            <span className={styles.deckCard} aria-hidden="true" />
+          </button>
+          <span className={styles.deckHint}>
+            {revealed >= total ? "Mesa completa" : busy ? "Revelando…" : `Toque no baralho · ${revealed}/${total}`}
+          </span>
+        </div>
+      </main>
+
+      {/* Reveal: the card rises from the deck, turns over and waits to be placed on the table. */}
+      {revealCard && (
+        <div
+          key={revealCard.position}
+          className={`${styles.reveal} ${bigSpread ? styles.revealQuick : ""}`}
+          onClick={dismissReveal}
+          role="dialog"
+          aria-modal="false"
+          aria-label={`Carta ${revealCard.position}: ${cardName(revealCard)}`}
         >
-          Fechar controles
-        </button>
+          <div className={styles.revealBurst} aria-hidden="true" />
+          <div className={styles.revealCard}>
+            <div className={styles.revealFlip}>
+              <span className={styles.revealBack} aria-hidden="true" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className={styles.revealFace} src={cardSrc(revealCard, 828)} alt={cardName(revealCard)} decoding="async" />
+            </div>
+          </div>
+          <div className={styles.revealInfo}>
+            <small>Carta {revealCard.position}</small>
+            <h2>{cardName(revealCard)}</h2>
+            {!bigSpread && cardNote && <p>{cardNote}</p>}
+            {!bigSpread && (
+              <button type="button" className={styles.ghostBtn} onClick={(event) => { event.stopPropagation(); dismissReveal(); }}>
+                Colocar na mesa
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Full table (big spreads on mobile). */}
+      <dialog ref={mesaDialog} className={styles.sheet} aria-labelledby="mesa-title" onClick={(event) => { if (event.target === event.currentTarget) mesaDialog.current?.close(); }}>
+        <div className={styles.sheetHandle} aria-hidden="true" />
+        <div className={styles.sheetHeader}>
+          <h2 id="mesa-title">Sua mesa · {revealed}/{total}</h2>
+          <button type="button" className={styles.iconBtn} onClick={() => mesaDialog.current?.close()} aria-label="Fechar mesa">✕</button>
+        </div>
+        {chapterChips.length > 0 && (
+          <div className={styles.chips} role="tablist" aria-label="Trechos da leitura">
+            {chapterChips.map((title, index) => (
+              <button
+                key={title + index}
+                type="button"
+                role="tab"
+                aria-selected={chapter === index}
+                className={`${styles.chip} ${chapter === index ? styles.chipOn : ""}`}
+                onClick={() => onSelectChapter(index)}
+              >
+                {title}
+              </button>
+            ))}
+          </div>
+        )}
+        {renderMesaGrid(true)}
+        {lineSize > 0 && revealed < total && (
+          <button type="button" className={styles.primaryBtn} onClick={() => { mesaDialog.current?.close(); drawCard(); }}>
+            Tirar a carta {revealed + 1}
+          </button>
+        )}
       </dialog>
 
-      {/* Hidden audio for welcome message */}
+      {/* Chapter text. */}
+      <dialog ref={textDialog} className={styles.sheet} aria-labelledby="immersive-text-title" onClick={(event) => { if (event.target === event.currentTarget) textDialog.current?.close(); }}>
+        <div className={styles.sheetHandle} aria-hidden="true" />
+        <div className={styles.sheetHeader}>
+          <h2 id="immersive-text-title">{chapterTitle}</h2>
+          <button type="button" className={styles.iconBtn} onClick={() => textDialog.current?.close()} aria-label="Fechar texto">✕</button>
+        </div>
+        <div className={styles.sheetScroll}>
+          <p className={styles.readingText}>
+            {chapterText || "A interpretação deste trecho aparece quando as cartas dele estiverem abertas."}
+          </p>
+        </div>
+      </dialog>
+
+      {/* The one menu: sound, text size, ambience, help, extras and a new reading. */}
+      <dialog ref={menuDialog} className={styles.sheet} aria-labelledby="immersive-options-title" onClose={() => menuButtonRef.current?.focus()} onClick={(event) => { if (event.target === event.currentTarget) closeMenu(); }}>
+        <div className={styles.sheetHandle} aria-hidden="true" />
+        <div className={styles.sheetHeader}>
+          <h2 id="immersive-options-title">Menu da consulta</h2>
+          <button type="button" className={styles.iconBtn} onClick={closeMenu} aria-label="Fechar menu">✕</button>
+        </div>
+        <div className={styles.sheetScroll}>
+          {bigSpread && !isDesktop && (
+            <button type="button" className={styles.menuRow} onClick={() => { closeMenu(); mesaDialog.current?.showModal(); }}>
+              Ver a mesa completa
+            </button>
+          )}
+          {chapterText && (
+            <button type="button" className={styles.menuRow} onClick={() => { closeMenu(); textDialog.current?.showModal(); }}>
+              Ler o texto deste trecho
+            </button>
+          )}
+
+          <section className={styles.menuSection}>
+            <h3>Som</h3>
+            <div className={styles.segmented}>
+              <button type="button" aria-pressed={sound === true} onClick={() => setSoundPreference(true)}>Com som</button>
+              <button type="button" aria-pressed={sound === false} onClick={() => setSoundPreference(false)}>Sem som</button>
+            </div>
+            {sound === true && (
+              <button type="button" className={styles.menuRow} onClick={playWelcomeAudio}>
+                {playingWelcome ? "Pausar acolhimento" : "Ouvir acolhimento"}
+              </button>
+            )}
+            <SoundscapeControls persona={session.persona} sessionId={session.id} />
+          </section>
+
+          <section className={styles.menuSection}>
+            <h3>Tamanho do texto</h3>
+            <div className={styles.segmented}>
+              <button type="button" disabled={readingFontSize <= 16} onClick={() => changeFontSize(Math.max(16, readingFontSize - 2))}>A−</button>
+              <button type="button" aria-pressed={readingFontSize === 18} onClick={() => changeFontSize(18)}>Padrão</button>
+              <button type="button" disabled={readingFontSize >= 22} onClick={() => changeFontSize(Math.min(22, readingFontSize + 2))}>A+</button>
+            </div>
+          </section>
+
+          <section className={styles.menuSection}>
+            <h3>Como funciona</h3>
+            <p>
+              Toque no baralho para tirar cada carta. Toque numa carta aberta para ampliá-la. Ao completar a mesa,
+              ouça a leitura ou leia o texto. É uma experiência de reflexão simbólica e não substitui aconselhamento
+              médico, jurídico ou financeiro.
+            </p>
+          </section>
+
+          {(extras || onReset) && (
+            <section className={styles.menuSection}>
+              {extras}
+              {onReset && (
+                <button type="button" className={styles.menuRow} onClick={() => { closeMenu(); onReset(); }}>
+                  Realizar nova leitura
+                </button>
+              )}
+            </section>
+          )}
+        </div>
+      </dialog>
+
       <audio
         ref={welcomePlayer}
         preload="none"

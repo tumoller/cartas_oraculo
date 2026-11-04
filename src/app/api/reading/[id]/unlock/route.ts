@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("[API /api/reading/[id]/unlock] Erro:", error);
     return NextResponse.json(
       { error: "Erro ao desbloquear leitura." },

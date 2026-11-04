@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { sanitizeReadingSession } from "@/lib/sanitize";
 import { grantReadingAccess, validReadingId } from "@/lib/reading-access";
 import type { Card } from "@/types";
+import type { Prisma } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   let draftId: string | undefined;
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       if (saved.requestHash !== requestHash) return NextResponse.json({ error: "Consulta não autorizada." }, { status: 403 });
       if (saved.status === "ready") return grantReadingAccess(NextResponse.json(sanitizeReadingSession(draft)), req, draft.id);
       if (saved.status !== "failed") return NextResponse.json({ error: "Esta consulta já está sendo preparada. Aguarde e tente novamente; as cartas estão preservadas." }, { status: 409 });
-      const retry = await prisma.readingSession.updateMany({ where: { id: draft.id, aiReading: { path: ["status"], equals: "failed" } }, data: { aiReading: { ...saved, status: "generating" } as any } });
+      const retry = await prisma.readingSession.updateMany({ where: { id: draft.id, aiReading: { path: ["status"], equals: "failed" } }, data: { aiReading: { ...saved, status: "generating" } as unknown as Prisma.InputJsonValue } });
       if (retry.count !== 1) return NextResponse.json({ error: "Consulta em processamento." }, { status: 409 });
       metadata = { ...saved, status: "generating" };
     } else {
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
         return { ...card, name: cardNameForDeck(card, persona)!, imageUrl: existsSync(path.join(process.cwd(), "public", imageUrl)) ? imageUrl : "" };
       });
       metadata = { requestHash, status: "generating", question: question.trim(), spread, readingDepth, methodVersion: spread === "line5" ? "lenormand-line-v1" : `lenormand-${spread}-v2` };
-      draft = await prisma.readingSession.create({ data: { id: requestId, userName: userName.trim(), persona, theme, cardsDrawn: cards as any, aiReading: metadata as any, isPaid: spread !== "line5" } });
+      draft = await prisma.readingSession.create({ data: { id: requestId, userName: userName.trim(), persona, theme, cardsDrawn: cards as unknown as Prisma.InputJsonValue, aiReading: metadata as unknown as Prisma.InputJsonValue, isPaid: spread !== "line5" } });
     }
     draftId = draft.id;
     // Sorteio persistido antes da IA. Retentativas usam as MESMAS cartas; uma leitura pronta nunca é regerada.
@@ -49,11 +50,12 @@ export async function POST(req: NextRequest) {
     const savedSpread = metadata.spread as SpreadId;
     const params = { userName: draft.userName, persona: draft.persona, theme: draft.theme, question: metadata.question as string, cardsDrawn };
     const reading = savedSpread === "line5" ? await generateOraculoReading(params) : await generateSpreadReading({ ...params, spread: savedSpread, cards: cardsDrawn, readingDepth: (metadata.readingDepth as ReadingDepth) || "complete" });
-    const session = await prisma.readingSession.update({ where: { id: draft.id }, data: { aiReading: { ...metadata, ...reading, status: "ready" } as any } });
+    const session = await prisma.readingSession.update({ where: { id: draft.id }, data: { aiReading: { ...metadata, ...reading, status: "ready" } as unknown as Prisma.InputJsonValue } });
     return grantReadingAccess(NextResponse.json(sanitizeReadingSession(session), { status: 201 }), req, session.id);
-  } catch (error: any) {
-    if (draftId) await prisma.readingSession.update({ where: { id: draftId }, data: { aiReading: { ...metadata, status: "failed" } as any } }).catch(() => {});
-    console.error("[reading/start]", error?.code || error?.name || "Falha de geração");
-    return NextResponse.json({ error: error?.code === "P2002" ? "Consulta já em processamento. Aguarde e tente novamente." : "Não foi possível concluir a interpretação. Tente novamente: as cartas desta consulta permanecem salvas." }, { status: error?.code === "P2002" ? 409 : 500 });
+  } catch (error) {
+    const failure = error as { code?: string; name?: string } | null;
+    if (draftId) await prisma.readingSession.update({ where: { id: draftId }, data: { aiReading: { ...metadata, status: "failed" } as unknown as Prisma.InputJsonValue } }).catch(() => {});
+    console.error("[reading/start]", failure?.code || failure?.name || "Falha de geração");
+    return NextResponse.json({ error: failure?.code === "P2002" ? "Consulta já em processamento. Aguarde e tente novamente." : "Não foi possível concluir a interpretação. Tente novamente: as cartas desta consulta permanecem salvas." }, { status: failure?.code === "P2002" ? 409 : 500 });
   }
 }

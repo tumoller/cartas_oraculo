@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
     const sanitized = sanitizeReadingSession(session);
     return NextResponse.json(sanitized, { status: 200, headers: { "Cache-Control": "private, no-store" } });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[API /api/reading/[id]] Erro:", error);
     return NextResponse.json(
       { error: "Erro ao consultar leitura." },

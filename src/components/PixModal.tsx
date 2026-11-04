@@ -41,9 +41,9 @@ export const PixModal: React.FC<PixModalProps> = ({
 
       onSuccess(data.session);
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Erro no unlock:", err);
-      setErrorMsg(err.message || "Erro inesperado. Tente novamente.");
+      setErrorMsg((err instanceof Error && err.message) || "Erro inesperado. Tente novamente.");
     } finally {
       setIsUnlocking(false);
     }

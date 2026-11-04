@@ -70,12 +70,12 @@ Responda JSON {sections:[{id,text}],cardNotes:[{position,text}],generalSynthesis
         throw new Error("Leitura incompleta. As cartas permanecem salvas.");
       }
       const sections = plan.map((section) => {
-        const matches = result.sections.filter((item: any) => item.id === section.id);
+        const matches = result.sections.filter((item: { id?: string }) => item.id === section.id);
         if (matches.length !== 1 || typeof matches[0].text !== "string" || !matches[0].text.trim()) throw new Error("Capítulo inválido.");
         return { ...section, text: matches[0].text };
       });
       for (let position = 1; position <= cards.length; position++) {
-        const notes = result.cardNotes.filter((item: any) => item.position === position);
+        const notes = result.cardNotes.filter((item: { position?: number }) => item.position === position);
         if (notes.length !== 1 || typeof notes[0].text !== "string" || !notes[0].text.trim()) throw new Error("Nota de carta ausente.");
       }
       return { sections, cardNotes: result.cardNotes as { position: number; text: string }[], generalSynthesis: result.generalSynthesis as string };

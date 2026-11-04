@@ -49,7 +49,9 @@ export function ConsultationScene({
   const [soundError, setSoundError] = useState(false);
   const [tableOpen, setTableOpen] = useState(true);
   const [preparation, setPreparation] = useState(0);
-  const [revealed, setRevealed] = useState(0);
+  const [revealState, setRevealState] = useState({ key: "", count: 0 });
+  const revealKey = `${session.id}:${session.cardsDrawn.length}`;
+  const revealed = revealState.key === revealKey ? revealState.count : 0;
   const [readingFontSize, setReadingFontSizeState] = useState(18);
   const sound = useSoundPreference();
   const playerId = useId();
@@ -87,16 +89,15 @@ export function ConsultationScene({
   }, []);
 
   useEffect(() => {
-    setRevealed(0);
     const reveal = (event: Event) => {
       const detail = (event as CustomEvent<{ sessionId: string; position: number; total: number }>).detail;
       if (detail?.sessionId === session.id && detail.total === total && Number.isInteger(detail.position) && detail.position >= 1 && detail.position <= total) {
-        setRevealed((current) => Math.max(current, detail.position));
+        setRevealState((current) => ({ key: revealKey, count: Math.max(current.key === revealKey ? current.count : 0, detail.position) }));
       }
     };
     window.addEventListener("oracle-reveal", reveal);
     return () => window.removeEventListener("oracle-reveal", reveal);
-  }, [session.id, total]);
+  }, [session.id, total, revealKey]);
 
   useEffect(() => {
     let active = false;
@@ -136,6 +137,7 @@ export function ConsultationScene({
 
   useEffect(() => {
     const saved = getReadingFontSize();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tamanho vem do localStorage; ler no render causaria divergencia de hidratacao
     setReadingFontSizeState(saved);
     setReadingFontSize(saved);
   }, []);

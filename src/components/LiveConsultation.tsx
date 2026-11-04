@@ -26,9 +26,12 @@ const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativel
 export function LiveConsultation({ session, immersive = false }: { session: ReadingSessionPayload; immersive?: boolean }) {
   const soundEnabled = useSoundPreference();
   const soundAllowed = useRef(soundEnabled === true);
-  soundAllowed.current = soundEnabled === true;
+  useEffect(() => { soundAllowed.current = soundEnabled === true; }, [soundEnabled]);
   const [state, setState] = useState<"idle" | "connecting" | "ready" | "ended">("idle");
-  const [available, setAvailable] = useState(false);
+  const [availableId, setAvailableId] = useState<string | null>(null);
+  const available = availableId === session.id;
+  const startingRef = useRef(false);
+  const startRef = useRef<(requestMic?: boolean) => Promise<void>>(async () => {});
   const [status, setStatus] = useState("Tire suas dúvidas sobre a leitura em uma conversa de até 3 minutos.");
   const [secondsLeft, setSecondsLeft] = useState(180);
   const [draft, setDraft] = useState("");
@@ -127,7 +130,7 @@ export function LiveConsultation({ session, immersive = false }: { session: Read
     const handleStartEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ sessionId: string; requestMic?: boolean }>).detail;
       if (detail?.sessionId === session.id) {
-        void start(detail.requestMic ?? false);
+        void startRef.current(detail.requestMic ?? false);
       }
     };
     window.addEventListener("oracle-start-live-conversation", handleStartEvent);
@@ -135,13 +138,12 @@ export function LiveConsultation({ session, immersive = false }: { session: Read
   }, [session.id]);
 
   useEffect(() => {
-    setAvailable(false);
     if (session.isPaid) {
       fetch(`/api/reading/${encodeURIComponent(session.id)}/live`, { cache: "no-store" })
         .then((response) => response.ok ? response.json() : null)
         .then((data: { enabled?: boolean; started?: boolean } | null) => {
           if (!data?.enabled) return;
-          setAvailable(true);
+          setAvailableId(session.id);
           if (data.started) {
             setState("ended");
             setStatus("A conversa desta leitura já foi iniciada.");
@@ -214,7 +216,8 @@ export function LiveConsultation({ session, immersive = false }: { session: Read
   };
 
   const start = async (requestMic = false) => {
-    if (state !== "idle") return;
+    if (state !== "idle" || startingRef.current) return;
+    startingRef.current = true;
     setLiveVoiceActive(true);
     setSoundPreference(true);
     setState("connecting");
@@ -346,6 +349,8 @@ export function LiveConsultation({ session, immersive = false }: { session: Read
       end(error instanceof Error && !/fetch|timeout|signal|network|token|Gemini|API/i.test(error.message) ? error.message : "Não foi possível iniciar a conversa. Tente novamente mais tarde.");
     }
   };
+
+  useEffect(() => { startRef.current = start; }, [start]);
 
   const sendText = (event: FormEvent) => {
     event.preventDefault();

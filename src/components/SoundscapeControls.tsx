@@ -21,8 +21,9 @@ export function SoundscapeControls({ persona, sessionId }: { persona: string; se
   const effects = useRef(new Set<HTMLAudioElement>());
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const enabled = useRef(false);
-  enabled.current = sound === true;
+  useEffect(() => { enabled.current = sound === true; }, [sound]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- volume vem do localStorage; ler no render causaria divergencia de hidratacao
   useEffect(() => updateVoiceVolume(getVoiceVolume()), []);
 
   useEffect(() => {

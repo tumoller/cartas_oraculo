@@ -38,8 +38,8 @@ next-env.d.ts
 /scratch/
 prototipo-*.html
 
-# test suites and artifacts (kept locally)
-/tests/
+# test artifacts (kept locally)
+
 /docs/testes/
 /conteudo/
 

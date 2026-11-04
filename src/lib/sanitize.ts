@@ -13,8 +13,8 @@ interface SessionData {
   userName: string;
   persona: string;
   theme: string;
-  cardsDrawn: any;
-  aiReading: any;
+  cardsDrawn: unknown;
+  aiReading: unknown;
   isPaid: boolean;
   createdAt: Date | string;
 }

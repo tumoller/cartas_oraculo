@@ -10,6 +10,14 @@ const paths = (key) => ({
   file: path.join(root(), "files", `${key}.wav`),
 });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Intervalo mínimo entre chamadas de TTS, para não disparar uma atrás da outra (free tier).
+let lastCallAt = 0;
+async function spaceCalls() {
+  const gap = Number(process.env.ORACLE_TTS_GAP_MS ?? 4000);
+  const wait = lastCallAt + gap - Date.now();
+  if (wait > 0) await sleep(wait);
+  lastCallAt = Date.now();
+}
 
 // ponytail: local lock only; use a shared coordinator if workers move to multiple hosts.
 async function acquireWorkerLock(audioDir = root(), portOverride) {
@@ -32,6 +40,7 @@ async function atomicWrite(file, data) {
 
 async function generate(job, fetcher = fetch) {
   if (!process.env.GEMINI_API_KEY) throw Object.assign(new Error("GEMINI_API_KEY ausente"), { transient: false });
+  await spaceCalls();
   const response = await fetcher("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
@@ -76,8 +85,9 @@ async function processJob(file, fetcher = fetch) {
   const attempts = (state.attempts || 0) + 1;
   await atomicWrite(target.state, JSON.stringify({ status: "generating", attempts }));
   try {
-    // Modelo do job primeiro; em qualquer erro, cai direto para os reservas (ORACLE_TTS_MODEL_FALLBACK, _FALLBACK2).
-    const models = [...new Set([job.model, process.env.ORACLE_TTS_MODEL_FALLBACK, process.env.ORACLE_TTS_MODEL_FALLBACK2].filter(Boolean))];
+    // Modelo do job primeiro; em qualquer erro, cai direto para os reservas (ORACLE_TTS_MODEL_FALLBACK, _FALLBACK2, _FALLBACK3).
+    const env = process.env;
+    const models = [...new Set([job.model, env.ORACLE_TTS_MODEL_FALLBACK, env.ORACLE_TTS_MODEL_FALLBACK2, env.ORACLE_TTS_MODEL_FALLBACK3].filter(Boolean))];
     let bytes;
     let lastError;
     for (const model of models) {

@@ -1,3 +1,4 @@
+process.env.ORACLE_TTS_GAP_MS = "0";
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");

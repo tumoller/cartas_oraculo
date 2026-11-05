@@ -396,7 +396,6 @@ export default function Home() {
                               fill
                               sizes="(max-width: 640px) 65vw, 240px"
                               className="object-contain object-bottom"
-                              quality={85}
                             />
                             {isSelected && (
                               <span className="absolute bottom-2 left-2 rounded-full border border-amber-300/60 bg-slate-950/90 px-3 py-1 text-xs font-medium text-amber-200">

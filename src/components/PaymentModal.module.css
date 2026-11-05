@@ -94,6 +94,10 @@
   border: 1px solid rgba(215, 170, 95, 0.35);
   backdrop-filter: blur(14px);
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: rise 0.5s ease-out 0.3s both;
 }
 
@@ -133,7 +137,15 @@
   color: #c9b79b;
 }
 
+.form label,
+.row > * {
+  min-width: 0;
+}
+
 .form input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   min-height: 46px;
   padding: 0 14px;
   border-radius: 12px;
@@ -288,11 +300,37 @@
 @keyframes glow { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0.4; } }
 @keyframes pulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } }
 
-@media (min-width: 1024px) {
-  .root { flex-direction: row; align-items: center; justify-content: flex-end; padding-right: 6vw; }
-  .faceImg { object-position: 50% 0%; }
-  .line { position: absolute; left: 6vw; bottom: 10vh; max-width: 40vw; text-align: left; margin: 0; }
-  .sheet { margin: 0; }
+/* Telas largas: mesmo enquadramento do celular. O rosto fica numa coluna retrato no centro
+   (zoom igual ao do celular) e o resto da tela é a própria cena desfocada. */
+.backdrop {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .backdrop {
+    display: block;
+    position: absolute;
+    inset: -40px;
+    width: calc(100% + 80px);
+    height: calc(100% + 80px);
+    object-fit: cover;
+    filter: blur(28px) brightness(0.35) saturate(0.8);
+  }
+  .face {
+    left: 50%;
+    right: auto;
+    width: min(100%, calc(100dvh * 0.62));
+    transform: translateX(-50%);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+  }
+  .line { max-width: 520px; margin-inline: auto; }
+  /* Campos em duas colunas: a folha fica baixa e o rosto continua visível. */
+  .sheet { max-width: 560px; }
+  form.form { grid-template-columns: 1fr 1fr; column-gap: 12px; }
+  form.form > .methods,
+  form.form > .note,
+  form.form > .primary { grid-column: 1 / -1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

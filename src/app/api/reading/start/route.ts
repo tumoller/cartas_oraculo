@@ -10,7 +10,8 @@ import type { ReadingDepth } from "@/lib/spread-config";
 import { prisma } from "@/lib/prisma";
 import { sanitizeReadingSession } from "@/lib/sanitize";
 import { grantReadingAccess, validReadingId } from "@/lib/reading-access";
-import type { Card } from "@/types";
+import type { AiReading, Card } from "@/types";
+import { enqueueAllAudio } from "@/lib/audio";
 import type { Prisma } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
     const params = { userName: draft.userName, persona: draft.persona, theme: draft.theme, question: metadata.question as string, cardsDrawn };
     const reading = savedSpread === "line5" ? await generateOraculoReading(params) : await generateSpreadReading({ ...params, spread: savedSpread, cards: cardsDrawn, readingDepth: (metadata.readingDepth as ReadingDepth) || "complete" });
     const session = await prisma.readingSession.update({ where: { id: draft.id }, data: { aiReading: { ...metadata, ...reading, status: "ready" } as unknown as Prisma.InputJsonValue } });
+    if (session.isPaid) await enqueueAllAudio(session.aiReading as unknown as AiReading, session.persona);
     return grantReadingAccess(NextResponse.json(sanitizeReadingSession(session), { status: 201 }), req, session.id);
   } catch (error) {
     const failure = error as { code?: string; name?: string } | null;

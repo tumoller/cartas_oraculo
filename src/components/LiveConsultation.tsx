@@ -446,7 +446,7 @@ export function LiveConsultation({ session, immersive = false }: { session: Read
   return (
     <section id={`oracle-live-content-${session.id}`} className={`scroll-mt-6 rounded-2xl border border-cyan-500/40 bg-slate-900/90 text-slate-100 ${immersive ? "flex min-h-0 flex-1 flex-col overflow-hidden p-3" : "p-5 sm:p-6"}`} aria-labelledby="live-title">
       {!immersive && <div className="relative mb-5 h-[min(27dvh,220px)] min-h-36 overflow-hidden rounded-xl border border-white/10 bg-slate-950" style={{ backgroundImage: `radial-gradient(ellipse at 50% 100%, ${scene.accent}40, transparent 72%)` }}>
-        <Image src={scene.close} alt={`Personagem da leitura: ${session.persona}`} fill sizes="(max-width: 640px) 90vw, 700px" quality={80} className="object-contain object-center" />
+        <Image src={scene.close} alt={`Personagem da leitura: ${session.persona}`} fill sizes="(max-width: 640px) 90vw, 700px" className="object-contain object-center" />
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-linear-to-t from-slate-950 to-transparent px-3 pb-3 pt-8 text-xs">
           <span className="rounded-full bg-slate-950/80 px-3 py-2">{session.persona}</span>
           {(state === "connecting" || state === "ready") && <span className="rounded-full border border-white/20 bg-slate-950/90 px-3 py-2 font-semibold tabular-nums">{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</span>}

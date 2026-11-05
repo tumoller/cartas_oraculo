@@ -12,7 +12,7 @@ Use `.env.example` como lista inicial e preencha `.env` no ambiente autorizado. 
 | `ORACLE_ACCESS_SECRET` | Segredo estável de assinatura; trocar invalida provas de acesso existentes |
 | `GEMINI_API_KEY` | Interpretação, TTS e token Live no servidor |
 | `GEMINI_MODEL`, `GEMINI_MODEL_FALLBACK` | Modelos de interpretação |
-| `ORACLE_TTS_MODEL` | Modelo de narração |
+| `ORACLE_TTS_MODEL`, `ORACLE_TTS_MODEL_FALLBACK`, `ORACLE_TTS_MODEL_FALLBACK2` | Modelos de narração (reservas usados em qualquer erro) |
 | `ORACLE_AUDIO_DIR` | Pasta privada compartilhada por web e worker; padrão `.data/audio` |
 | `ORACLE_DEMO_MODE` | Libera demonstração; não representa pagamento confirmado |
 | `ORACLE_LIVE_ENABLED` | Habilita experimento Live |

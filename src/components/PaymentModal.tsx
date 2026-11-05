@@ -174,6 +174,8 @@ export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread
   // Portal: fora de qualquer contexto de empilhamento da página/cena.
   return createPortal(
     <div className={styles.root} data-mood={mood} role="dialog" aria-modal="true" aria-labelledby="payment-title">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={still} alt="" aria-hidden="true" className={styles.backdrop} />
       <div className={styles.face} aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img key={still} src={still} alt="" className={styles.faceImg} />

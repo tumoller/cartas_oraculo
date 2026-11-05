@@ -451,9 +451,18 @@ export function ConsultationImmersive({
 
         <div className={styles.controls}>
           {onRequestUnlock ? (
-            <button type="button" onClick={onRequestUnlock} className={styles.unlockBtn}>
-              <span aria-hidden="true">✦</span> {unlockLabel ?? "Abrir leitura completa"}
-            </button>
+            <>
+              <button type="button" onClick={onRequestUnlock} className={styles.unlockBtn}>
+                <span aria-hidden="true">✦</span> {unlockLabel ?? "Abrir leitura completa"}
+              </button>
+              {/* Grátis: voz e conversa ao vivo aparecem, mas pedem o pagamento. */}
+              <button type="button" onClick={onRequestUnlock} className={styles.ghostBtn} aria-label="Ouvir a leitura (disponível na leitura completa)">
+                🔒 Ouvir a leitura
+              </button>
+              <button type="button" onClick={onRequestUnlock} className={styles.ghostBtn} aria-label="Conversar ao vivo (disponível na leitura completa)">
+                🔒 Conversar ao vivo
+              </button>
+            </>
           ) : isNarrationPlaying ? (
             <button type="button" onClick={handleToggleAudio} className={styles.voiceBtn}>
               <span className={styles.voiceWave} aria-hidden="true"><i /><i /><i /></span> Ⅱ Pausar leitura

@@ -76,7 +76,15 @@ async function processJob(file, fetcher = fetch) {
   const attempts = (state.attempts || 0) + 1;
   await atomicWrite(target.state, JSON.stringify({ status: "generating", attempts }));
   try {
-    const bytes = await generate(job, fetcher);
+    // Modelo do job primeiro; em qualquer erro, cai direto para os reservas (ORACLE_TTS_MODEL_FALLBACK, _FALLBACK2).
+    const models = [...new Set([job.model, process.env.ORACLE_TTS_MODEL_FALLBACK, process.env.ORACLE_TTS_MODEL_FALLBACK2].filter(Boolean))];
+    let bytes;
+    let lastError;
+    for (const model of models) {
+      try { bytes = await generate({ ...job, model }, fetcher); break; }
+      catch (error) { lastError = error; if (models.length > 1) console.error(`[audio-worker] ${job.key} ${model}: ${error.message}`); }
+    }
+    if (!bytes) throw lastError;
     // A completed file is immutable. Repeated requests and later worker runs reuse it.
     await atomicWrite(target.file, bytes);
     await atomicWrite(target.state, JSON.stringify({ status: "ready", attempts }));
@@ -96,7 +104,11 @@ async function runOnce(fetcher = fetch) {
     if (error.code === "ENOENT") return;
     throw error;
   }
-  for (const name of jobs.filter((name) => /^[a-f0-9]{64}\.json$/.test(name))) {
+  // Ordem de chegada: a pré-carga enfileira linha 1, linha 2… e é nessa ordem que a voz fica pronta.
+  const queued = await Promise.all(jobs.filter((name) => /^[a-f0-9]{64}\.json$/.test(name)).map(async (name) => {
+    try { return { name, at: (await fs.stat(path.join(root(), "jobs", name))).mtimeMs }; } catch { return { name, at: Infinity }; }
+  }));
+  for (const { name } of queued.sort((x, y) => x.at - y.at)) {
     try { await processJob(path.join(root(), "jobs", name), fetcher); }
     catch (error) { console.error(`[audio-worker] ${name}: ${error.message}`); }
   }

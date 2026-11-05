@@ -1,14 +1,18 @@
 import type { Payment } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getOrder, orderStatus } from "@/lib/pagbank";
+import { enqueueAllAudio } from "@/lib/audio";
+import type { AiReading } from "@/types";
 
 /** Aplica o resultado: pagamento de "unlock" abre a leitura de 5 cartas; "prepaid" é consumido pelo /reading/start. */
 export async function markPayment(payment: Payment, status: "PAID" | "DECLINED" | "EXPIRED") {
   if (payment.status === "PAID" || payment.status === status) return payment;
   const updated = await prisma.payment.update({ where: { id: payment.id }, data: { status, paidAt: status === "PAID" ? new Date() : null } });
   if (status === "PAID" && payment.kind === "unlock") {
-    await prisma.readingSession.update({ where: { id: payment.readingId }, data: { isPaid: true } })
-      .catch((error) => console.error("[payment] unlock falhou", payment.id, error?.code));
+    const reading = await prisma.readingSession.update({ where: { id: payment.readingId }, data: { isPaid: true } })
+      .catch((error) => { console.error("[payment] unlock falhou", payment.id, error?.code); return null; });
+    // Já começa a gerar a voz de todos os capítulos enquanto a pessoa revela as cartas.
+    if (reading) await enqueueAllAudio(reading.aiReading as unknown as AiReading, reading.persona);
   }
   return updated;
 }

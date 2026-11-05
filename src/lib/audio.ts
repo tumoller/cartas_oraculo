@@ -132,3 +132,11 @@ export async function audioStatus(job: ReturnType<typeof chapterJob>): Promise<"
     return "pending";
   } catch { return "not_started"; }
 }
+
+/** Leitura paga: enfileira todos os capítulos já na abertura, em ordem, para a voz estar pronta quando a pessoa tocar. */
+export async function enqueueAllAudio(reading: Reading, persona: string): Promise<void> {
+  for (const { chapter } of audioChapters(reading)) {
+    try { await enqueueAudio(chapterJob(reading, persona, chapter)); }
+    catch (error) { console.error("[audio] pré-carga falhou", chapter, error instanceof Error ? error.message : error); }
+  }
+}

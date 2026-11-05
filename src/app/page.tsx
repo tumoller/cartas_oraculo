@@ -21,6 +21,8 @@ import { CosmicBackground } from "@/components/CosmicBackground";
 import { ReadingBoard } from "@/components/ReadingBoard";
 import { SpreadBoard } from "@/components/SpreadBoard";
 import { SPREADS, SpreadId } from "@/lib/spread-config";
+import { formatBRL, PRICES, type PricedSpread } from "@/lib/pricing";
+import { PaymentModal } from "@/components/PaymentModal";
 import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
 import { getReadingFontSize, setReadingFontSize } from "@/lib/reading-font";
 import { PersonaType, ThemeType, ReadingSessionPayload } from "@/types";
@@ -77,6 +79,9 @@ export default function Home() {
   const [narrationChoice, setNarrationChoice] = useState<boolean | null>(null);
   const [initialNarration, setInitialNarration] = useState<boolean | undefined>();
   const [demoAccess, setDemoAccess] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  // Pix já confirmado desta consulta: uma nova tentativa (ex.: IA falhou) não cobra de novo.
+  const [paidPaymentId, setPaidPaymentId] = useState<string | null>(null);
   const [recent, setRecent] = useState<{id:string;label:string}[]>([]);
   const [requestIdentity, setRequestIdentity] = useState<{requestId:string;requestKey:string} | null>(null);
   const inFlight = useRef(false);
@@ -133,6 +138,9 @@ export default function Home() {
         setSelectedPersona(pending.persona); setSelectedTheme(pending.theme);
         setSpread(pending.spread || "line5"); setDemoAccess(Boolean(pending.demoAccess));
         setReadingDepth(pending.readingDepth === "basic" ? "basic" : "complete");
+        if (typeof pending.paymentId === "string") setPaidPaymentId(pending.paymentId);
+        // Voltou do app do banco com um Pix em andamento: reabre o pagamento, que retoma o status.
+        else if (pending.spread !== "line5" && localStorage.getItem(`oracle_payment_${pending.identity.requestId}`)) setPayOpen(true);
       }
     } catch { /* navegador sem armazenamento: a consulta atual continua funcional */ }
     });
@@ -156,9 +164,14 @@ export default function Home() {
     finally { setIsLoading(false); }
   };
 
-  const handleStartReading = async (e: React.FormEvent) => {
+  const handleStartReading = (e: React.FormEvent) => {
     e.preventDefault();
+    void startReading();
+  };
+
+  const startReading = async (newPaidId?: string) => {
     if (inFlight.current) return;
+    const paidId = newPaidId ?? paidPaymentId ?? undefined;
     if (!userName.trim()) {
       setErrorMessage("Por favor, digite o seu primeiro nome.");
       return;
@@ -170,17 +183,24 @@ export default function Home() {
     }
 
     setErrorMessage(null);
+    // randomUUID exige contexto seguro; a rede local HTTP usa os mesmos bytes criptográficos.
+    const uuid = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (character) => (Number(character) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(character) / 4).toString(16));
+    const identity = requestIdentity || { requestId: uuid(), requestKey: uuid() };
+    setRequestIdentity(identity);
+    const depth = spread === "box9" || spread === "grand36" ? readingDepth : "complete";
+    try { localStorage.setItem("oracle_pending", JSON.stringify({identity,userName,question,persona:selectedPersona,theme:selectedTheme,spread,readingDepth:depth,demoAccess,paymentId:paidId})); } catch {}
+    if (newPaidId) setPaidPaymentId(newPaidId);
+    // 9 e 36 cartas: paga antes do sorteio (a IA só roda depois do Pix confirmado).
+    if (spread !== "line5" && !demoAccess && !paidId) {
+      setPayOpen(true);
+      return;
+    }
+
     setLoadingSaved(false);
     setIsLoading(true);
     inFlight.current = true;
 
     try {
-      // randomUUID exige contexto seguro; a rede local HTTP usa os mesmos bytes criptográficos.
-      const uuid = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (character) => (Number(character) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(character) / 4).toString(16));
-      const identity = requestIdentity || { requestId: uuid(), requestKey: uuid() };
-      setRequestIdentity(identity);
-      const depth = spread === "box9" || spread === "grand36" ? readingDepth : "complete";
-      try { localStorage.setItem("oracle_pending", JSON.stringify({identity,userName,question,persona:selectedPersona,theme:selectedTheme,spread,readingDepth:depth,demoAccess})); } catch {}
       const response = await fetch("/api/reading/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -189,7 +209,7 @@ export default function Home() {
           persona: selectedPersona,
           theme: selectedTheme,
           question: question.trim(),
-          spread, readingDepth: depth, demoAccess, ...identity,
+          spread, readingDepth: depth, demoAccess, paymentId: paidId, ...identity,
         }),
       });
 
@@ -206,8 +226,8 @@ export default function Home() {
       setInitialNarration(effectiveNarration);
       setSessionData(data);
       const updated = [{id:data.id,label:`${data.userName} · ${SPREADS[data.spread as SpreadId || "line5"].title}`}, ...recent.filter((item) => item.id !== data.id)].slice(0,20);
-      setRecent(updated); setRequestIdentity(null);
-      try { localStorage.setItem("oracle_recent",JSON.stringify(updated)); localStorage.removeItem("oracle_pending"); } catch {}
+      setRecent(updated); setRequestIdentity(null); setPaidPaymentId(null);
+      try { localStorage.setItem("oracle_recent",JSON.stringify(updated)); localStorage.removeItem("oracle_pending"); localStorage.removeItem(`oracle_payment_${identity.requestId}`); } catch {}
       setStep("reading");
       window.scrollTo({ top: 0, behavior: "instant" });
     } catch (err) {
@@ -296,8 +316,12 @@ export default function Home() {
 
             {requestIdentity && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-sm text-amber-100 flex flex-wrap items-center justify-between gap-3">
-                <span>Sua leitura ainda está sendo preparada. Se tentar novamente, as mesmas cartas serão usadas.</span>
-                <button
+                <span>{paidPaymentId
+                  ? "Pagamento confirmado. Toque em “Concluir a mesma consulta” para abrir a sua mesa."
+                  : spread !== "line5" && !demoAccess
+                  ? "Sua consulta está guardada. Conclua o pagamento para abrir a mesa."
+                  : "Sua leitura ainda está sendo preparada. Se tentar novamente, as mesmas cartas serão usadas."}</span>
+                {!paidPaymentId && <button
                   type="button"
                   disabled={isLoading}
                   onClick={() => {
@@ -309,7 +333,7 @@ export default function Home() {
                   className="text-xs underline disabled:opacity-40 shrink-0"
                 >
                   Começar outra leitura
-                </button>
+                </button>}
               </div>
             )}
 
@@ -482,6 +506,7 @@ export default function Home() {
                         }`}
                       >
                         {item.title}
+                        <span className="block text-xs font-normal text-amber-300/80 mt-0.5">{formatBRL(PRICES[id as PricedSpread])}</span>
                       </button>
                     ))}
                   </div>
@@ -529,19 +554,11 @@ export default function Home() {
                   <p className="text-xs sm:text-sm text-slate-300">Centro e combinações integrados à leitura da linha.</p>
                 )}
 
-                {spread !== "line5" && (
-                  <label className="flex gap-3 text-xs sm:text-sm text-slate-300 rounded-xl p-3.5 bg-indigo-950/40 border border-indigo-500/30 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={demoAccess}
-                      disabled={Boolean(requestIdentity)}
-                      onChange={(event) => setDemoAccess(event.target.checked)}
-                      required
-                      className="mt-0.5 shrink-0"
-                    />
-                    <span>Quero ver a leitura completa nesta demonstração. Não há cobrança.</span>
-                  </label>
-                )}
+                <p className="text-xs sm:text-sm text-slate-300 rounded-xl p-3.5 bg-indigo-950/40 border border-indigo-500/30">
+                  {spread === "line5"
+                    ? `As 3 primeiras cartas são grátis. A leitura completa custa ${formatBRL(PRICES.line5)} no Pix.`
+                    : `Esta mesa custa ${formatBRL(PRICES[spread as PricedSpread])} no Pix. As cartas são sorteadas assim que o pagamento é confirmado.`}
+                </p>
 
                 <fieldset className="min-w-0">
                   <legend className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
@@ -636,6 +653,19 @@ export default function Home() {
       )}
 
       {/* TELA CENTRAL DE CONCENTRAÇÃO / CARREGAMENTO (Olhos abertos -> Olhos fechados concentrando -> Abre os olhos ao concluir) */}
+      {requestIdentity && spread !== "line5" && (
+        <PaymentModal
+          isOpen={payOpen}
+          onClose={() => setPayOpen(false)}
+          persona={selectedPersona}
+          kind="prepaid"
+          readingId={requestIdentity.requestId}
+          spread={spread as PricedSpread}
+          defaultName={userName}
+          onPaid={(payment) => { setPayOpen(false); void startReading(payment.id); }}
+        />
+      )}
+
       {isLoading && (
         <div
           role="status"

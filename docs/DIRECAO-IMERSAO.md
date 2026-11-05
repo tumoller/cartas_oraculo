@@ -45,3 +45,13 @@ Para cada personagem (cigana, cósmico, umbanda), um loop por estado: **parada, 
 - MP4 (H.264) e, se possível, WebM, sem som, até 1,5 MB cada.
 - Mesmo enquadramento, luz e roupa em todos os estados, para o crossfade não "pular".
 - Verso da carta e textura da mesa em PNG separado, alta resolução.
+
+### Pagamento (close no rosto)
+
+Para cada personagem, mais três vídeos em close do rosto, com o mesmo enquadramento entre eles:
+
+- **aguardando** (loop de 3 a 5 s): olha para a pessoa e espera, com respiração e piscar;
+- **recusa** (2 a 3 s, sem loop): fica triste ou decepcionada e termina parada;
+- **aceite** (2 a 3 s, sem loop): sorri e acena, e termina parada.
+
+Formato: vertical 1080×1920, MP4 ou WebM, sem som (a fala é gerada pelo app).

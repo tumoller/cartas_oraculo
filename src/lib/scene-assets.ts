@@ -18,6 +18,20 @@ export function sceneLoops(persona: string): OracleLoops {
   return LOOPS.cosmico;
 }
 
+/** Close do rosto no pagamento. Vazio = zoom na cena estática. waiting em loop; paid/declined tocam uma vez. */
+export type PaymentMood = "waiting" | "paid" | "declined";
+const PAYMENT_LOOPS: Record<"umbanda" | "cigana" | "cosmico", Partial<Record<PaymentMood, string>>> = {
+  umbanda: {},
+  cigana: {},
+  cosmico: {},
+};
+
+export function paymentLoops(persona: string) {
+  if (persona === "Linha de Umbanda") return PAYMENT_LOOPS.umbanda;
+  if (persona === "Cigana Tradicional") return PAYMENT_LOOPS.cigana;
+  return PAYMENT_LOOPS.cosmico;
+}
+
 export function sceneAssets(persona: string) {
   if (persona === "Linha de Umbanda") return {
     portrait: "/avatars/umbanda-meio-corpo-realista.png",

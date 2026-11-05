@@ -1,0 +1,301 @@
+/* Pagamento dentro da cena: zoom no rosto da oráculo, folha flutuante embaixo. */
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: #0b0705;
+  color: #f4e9d8;
+  overflow: hidden;
+  animation: fadeIn 0.35s ease-out both;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.faceImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 0%;
+  transform-origin: 50% 22%;
+  animation: zoomIn 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both, breathe 6s ease-in-out 1.4s infinite;
+}
+
+.faceShade {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 30%, transparent 40%, rgba(8, 5, 3, 0.55) 100%),
+    linear-gradient(to bottom, transparent 35%, rgba(8, 5, 3, 0.92) 78%);
+  transition: background 0.8s ease;
+}
+
+.root[data-mood="declined"] .faceImg {
+  filter: saturate(0.45) brightness(0.72);
+  transition: filter 1.2s ease;
+}
+
+.root[data-mood="paid"] .faceImg {
+  filter: brightness(1.12) saturate(1.15);
+  transition: filter 0.8s ease;
+}
+
+.root[data-mood="paid"] .face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 30%, rgba(255, 210, 130, 0.35), transparent 60%);
+  animation: glow 2.4s ease-out both;
+}
+
+.close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 14px);
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(244, 233, 216, 0.25);
+  background: rgba(10, 6, 4, 0.55);
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.line {
+  position: relative;
+  margin: 0 24px 14px;
+  text-align: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.4;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+  animation: rise 0.6s ease-out 0.5s both;
+}
+
+.sheet {
+  position: relative;
+  width: calc(100% - 24px);
+  max-width: 440px;
+  margin: 0 auto calc(env(safe-area-inset-bottom) + 12px);
+  padding: 18px 20px 20px;
+  border-radius: 24px;
+  background: rgba(20, 12, 8, 0.88);
+  border: 1px solid rgba(215, 170, 95, 0.35);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  animation: rise 0.5s ease-out 0.3s both;
+}
+
+.title {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  color: #f1d9a8;
+  text-align: center;
+}
+
+.price {
+  margin: 4px 0 14px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #f0b752;
+}
+
+.price span {
+  font-size: 13px;
+  font-weight: 500;
+  color: #c9b79b;
+}
+
+.form {
+  display: grid;
+  gap: 10px;
+}
+
+.form label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #c9b79b;
+}
+
+.form input {
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(215, 170, 95, 0.3);
+  background: rgba(0, 0, 0, 0.35);
+  color: #f4e9d8;
+  font-size: 16px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.form input:focus {
+  outline: 2px solid #d5a75f;
+  outline-offset: 1px;
+}
+
+.methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.methods button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #c9b79b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.methods button[aria-pressed="true"] {
+  background: rgba(215, 170, 95, 0.22);
+  color: #f1d9a8;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.primary,
+.secondary {
+  min-height: 50px;
+  width: 100%;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.primary {
+  border: 0;
+  background: linear-gradient(90deg, #c98d34, #f0c46a, #c98d34);
+  color: #1b1008;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+}
+
+.secondary {
+  border: 1px solid rgba(215, 170, 95, 0.4);
+  background: transparent;
+  color: #f1d9a8;
+}
+
+.pix {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.qr {
+  width: 176px;
+  height: 176px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #fff;
+  image-rendering: pixelated;
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #f1d9a8;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f0b752;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #a8977e;
+  text-align: center;
+}
+
+.sandbox {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(215, 170, 95, 0.3);
+  font-size: 11px;
+  color: #a8977e;
+}
+
+.sandbox button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(215, 170, 95, 0.4);
+  background: transparent;
+  color: #f1d9a8;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.error {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(120, 20, 30, 0.5);
+  color: #ffc9c9;
+  font-size: 13px;
+  text-align: center;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes zoomIn { from { transform: scale(1); } to { transform: scale(2.1); } }
+@keyframes breathe { 0%, 100% { transform: scale(2.1); } 50% { transform: scale(2.16); } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes glow { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0.4; } }
+@keyframes pulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } }
+
+@media (min-width: 1024px) {
+  .root { flex-direction: row; align-items: center; justify-content: flex-end; padding-right: 6vw; }
+  .faceImg { object-position: 50% 0%; }
+  .line { position: absolute; left: 6vw; bottom: 10vh; max-width: 40vw; text-align: left; margin: 0; }
+  .sheet { margin: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root, .line, .sheet, .dot, .root[data-mood="paid"] .face::after { animation: none; }
+  .faceImg { animation: none; transform: scale(2.1); }
+}

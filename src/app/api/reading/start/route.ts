@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   let draftId: string | undefined;
   let metadata: Record<string, unknown> = {};
   try {
-    const { userName, persona, theme, question = "", spread = "line5", readingDepth = "complete", requestId, requestKey, demoAccess = false } = await req.json();
+    const { userName, persona, theme, question = "", spread = "line5", readingDepth = "complete", requestId, requestKey, demoAccess = false, paymentId } = await req.json();
     if (typeof userName !== "string" || !userName.trim() || userName.trim().length > 40 || typeof question !== "string" || question.length > 500) return NextResponse.json({ error: "Informe seu primeiro nome e uma pergunta de até 500 caracteres." }, { status: 400 });
     if (!["Oráculo da Galáxia", "Cigana Tradicional", "Linha de Umbanda"].includes(persona) || !["Amor & Relacionamento", "Trabalho & Dinheiro", "Amizades & Caminhos"].includes(theme) || !Object.hasOwn(SPREADS, spread)) return NextResponse.json({ error: "Escolha uma abordagem, tema e tiragem válidos." }, { status: 400 });
     if (!["basic", "complete"].includes(readingDepth) || (readingDepth === "basic" && spread !== "box9" && spread !== "grand36")) return NextResponse.json({ error: "Escolha uma profundidade válida para esta tiragem." }, { status: 400 });
@@ -28,12 +28,21 @@ export async function POST(req: NextRequest) {
       const saved = draft.aiReading as Record<string, unknown>;
       if (saved.requestHash !== requestHash) return NextResponse.json({ error: "Consulta não autorizada." }, { status: 403 });
       if (saved.status === "ready") return grantReadingAccess(NextResponse.json(sanitizeReadingSession(draft)), req, draft.id);
-      if (saved.status !== "failed") return NextResponse.json({ error: "Esta consulta já está sendo preparada. Aguarde e tente novamente; as cartas estão preservadas." }, { status: 409 });
-      const retry = await prisma.readingSession.updateMany({ where: { id: draft.id, aiReading: { path: ["status"], equals: "failed" } }, data: { aiReading: { ...saved, status: "generating" } as unknown as Prisma.InputJsonValue } });
+      // "generating" parado há mais de 8 min = processo caiu no meio (deploy, timeout): libera nova tentativa.
+      const startedAt = typeof saved.startedAt === "number" ? saved.startedAt : draft.createdAt.getTime();
+      const stale = saved.status === "generating" && Date.now() - startedAt > 8 * 60_000;
+      if (saved.status !== "failed" && !stale) return NextResponse.json({ error: "Esta consulta já está sendo preparada. Aguarde e tente novamente; as cartas estão preservadas." }, { status: 409 });
+      const retry = await prisma.readingSession.updateMany({ where: { id: draft.id, aiReading: { path: ["status"], equals: saved.status as string } }, data: { aiReading: { ...saved, status: "generating", startedAt: Date.now() } as unknown as Prisma.InputJsonValue } });
       if (retry.count !== 1) return NextResponse.json({ error: "Consulta em processamento." }, { status: 409 });
-      metadata = { ...saved, status: "generating" };
+      metadata = { ...saved, status: "generating", startedAt: Date.now() };
     } else {
-      if (spread !== "line5" && (process.env.ORACLE_DEMO_MODE !== "true" || demoAccess !== true)) return NextResponse.json({ error: "Esta tiragem exige acesso completo. O pagamento ainda está em simulação." }, { status: 403 });
+      if (spread !== "line5" && (process.env.ORACLE_DEMO_MODE !== "true" || demoAccess !== true)) {
+        // 9/36 são pagas antes do sorteio: exige um Pix confirmado para ESTA consulta e tiragem.
+        const payment = typeof paymentId === "string" && validReadingId(paymentId) ? await prisma.payment.findUnique({ where: { id: paymentId } }) : null;
+        if (!payment || payment.status !== "PAID" || payment.kind !== "prepaid" || payment.readingId !== requestId || payment.spread !== spread) {
+          return NextResponse.json({ error: "Esta tiragem precisa do pagamento confirmado.", paymentRequired: true }, { status: 402 });
+        }
+      }
       const deckFolder = persona === "Oráculo da Galáxia" ? "cosmico" : persona === "Linha de Umbanda" ? "umbanda" : "cigano";
       const cards = drawDistinctCards(SPREADS[spread as SpreadId].count).map((card) => {
         const jpg = `/cards/${deckFolder}/card-${card.id}.jpg`;
@@ -41,7 +50,7 @@ export async function POST(req: NextRequest) {
         const imageUrl = existsSync(path.join(process.cwd(), "public", jpg)) ? jpg : png;
         return { ...card, name: cardNameForDeck(card, persona)!, imageUrl: existsSync(path.join(process.cwd(), "public", imageUrl)) ? imageUrl : "" };
       });
-      metadata = { requestHash, status: "generating", question: question.trim(), spread, readingDepth, methodVersion: spread === "line5" ? "lenormand-line-v1" : `lenormand-${spread}-v2` };
+      metadata = { requestHash, status: "generating", startedAt: Date.now(), question: question.trim(), spread, readingDepth, methodVersion: spread === "line5" ? "lenormand-line-v1" : `lenormand-${spread}-v2` };
       draft = await prisma.readingSession.create({ data: { id: requestId, userName: userName.trim(), persona, theme, cardsDrawn: cards as unknown as Prisma.InputJsonValue, aiReading: metadata as unknown as Prisma.InputJsonValue, isPaid: spread !== "line5" } });
     }
     draftId = draft.id;

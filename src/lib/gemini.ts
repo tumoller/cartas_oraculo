@@ -87,13 +87,13 @@ Antes de responder, revise o tom: não use linguagem de garantia nem transforme 
   const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const fallbackModel = process.env.GEMINI_MODEL_FALLBACK || "gemini-2.5-flash-lite";
   const ai = new GoogleGenerativeAI(apiKey);
-  for (const modelName of [primaryModel, fallbackModel]) {
+  for (const modelName of [primaryModel, fallbackModel, process.env.GEMINI_MODEL_FALLBACK2].filter((name): name is string => Boolean(name))) {
     try {
       const model = ai.getGenerativeModel({
         model: modelName,
         systemInstruction: instructions,
         generationConfig: { responseMimeType: "application/json", temperature: 0.8 },
-      });
+      }, { timeout: Number(process.env.GEMINI_TIMEOUT_MS) || 100_000 });
       const parsed: unknown = JSON.parse((await model.generateContent(data)).response.text());
       validateAiReading(parsed, params.cardsDrawn);
       return parsed;

@@ -58,13 +58,13 @@ Responda JSON {sections:[{id,text}],cardNotes:[{position,text}],generalSynthesis
   const fallbackModel = process.env.GEMINI_MODEL_FALLBACK || "gemini-2.5-flash-lite";
   let lastError: unknown;
 
-  for (const modelName of [primaryModel, fallbackModel]) {
+  for (const modelName of [primaryModel, fallbackModel, process.env.GEMINI_MODEL_FALLBACK2].filter((name): name is string => Boolean(name))) {
     try {
       const model = ai.getGenerativeModel({
         model: modelName,
         generationConfig: { responseMimeType: "application/json", temperature: 0.65 },
         systemInstruction,
-      });
+      }, { timeout: Number(process.env.GEMINI_TIMEOUT_MS) || 100_000 });
       const result = JSON.parse((await model.generateContent(data)).response.text());
       if (!Array.isArray(result.sections) || result.sections.length !== plan.length || !Array.isArray(result.cardNotes) || result.cardNotes.length !== cards.length || typeof result.generalSynthesis !== "string" || !result.generalSynthesis.trim()) {
         throw new Error("Leitura incompleta. As cartas permanecem salvas.");

@@ -8,7 +8,7 @@ import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
 import type { ReadingSessionPayload } from "@/types";
 import { ConsultationImmersive } from "./ConsultationImmersive";
 import { LiveConsultation } from "./LiveConsultation";
-import { PixModal } from "./PixModal";
+import { PaymentModal } from "./PaymentModal";
 import { ReadingAudio } from "./ReadingAudio";
 import { WhatsAppUpsell } from "./WhatsAppUpsell";
 import { CardRevealDialog } from "./CardRevealDialog";
@@ -335,7 +335,21 @@ export function ReadingBoard({
         onConfirm={confirmChapterSwitch}
         onCancel={cancelChapterSwitch}
       />
-      <PixModal isOpen={isPixModalOpen} onClose={() => setIsPixModalOpen(false)} sessionId={session.id} onSuccess={setSession} />
+      <PaymentModal
+        isOpen={isPixModalOpen}
+        onClose={() => setIsPixModalOpen(false)}
+        persona={session.persona}
+        kind="unlock"
+        readingId={session.id}
+        spread="line5"
+        defaultName={session.userName}
+        onPaid={async () => {
+          // O servidor já marcou a leitura como paga; recarrega o conteúdo completo.
+          const response = await fetch(`/api/reading/${session.id}`, { cache: "no-store" });
+          if (response.ok) setSession(await response.json());
+          setIsPixModalOpen(false);
+        }}
+      />
     </>
   );
 }

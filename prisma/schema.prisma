@@ -19,3 +19,22 @@ model ReadingSession {
 
   @@map("reading_sessions")
 }
+
+// Pix via PagBank (API de pedidos). "unlock" abre o resto da leitura de 5; "prepaid" libera 9/36 antes do sorteio.
+model Payment {
+  id        String    @id @default(uuid())
+  readingId String
+  kind      String
+  spread    String
+  amount    Int
+  orderId   String?   @unique
+  status    String    @default("PENDING")
+  pixText   String?
+  pixImage  String?
+  expiresAt DateTime?
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([readingId])
+  @@map("payments")
+}

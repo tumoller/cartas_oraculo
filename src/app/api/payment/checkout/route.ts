@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const url = await createCheckoutLink({
       paymentId: id,
       amount: p.amount,
-      description: TITLES[p.priced],
+      description: `Cartas Oráculo · ${TITLES[p.priced]}`,
       redirectUrl: `${origin}/api/payment/return/${id}`,
       webhookUrl: origin.startsWith("https://") ? `${origin}/api/payment/infinitepay` : undefined,
     });

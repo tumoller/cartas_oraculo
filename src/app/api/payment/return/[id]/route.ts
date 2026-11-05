@@ -16,5 +16,5 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     await confirmCheckout(payment, slug, transactionNsu)
       .catch((error) => console.error("[payment/return]", id, error instanceof Error ? error.message : error));
   }
-  return NextResponse.redirect(`${origin}/?pagamento=${id}`, 303);
+  return NextResponse.redirect(`${origin}/pagamento-concluido?id=${id}`, 303);
 }

@@ -25,7 +25,7 @@ const storeKey = (id: string) => `oracle_payment_${id}`;
 
 const LINES: Record<Step, string> = {
   form: "Toda consulta pede uma troca. Faça o pagamento e eu abro as cartas para você.",
-  waiting: "Estou aguardando. Assim que o pagamento chegar, as cartas falam.",
+  waiting: "Estou sentindo a sua energia chegar… assim que o pagamento for confirmado, as cartas falam.",
   paid: "Recebido. Vamos consultar a sua sorte.",
   declined: "O pagamento não chegou até mim. Quer tentar de novo?",
 };
@@ -71,23 +71,39 @@ export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread
       .catch(() => {});
   }, [isOpen, readingId, apply]);
 
-  // Consulta o status enquanto aguarda (o webhook confirma no servidor).
+  // Aguarda a confirmação (o webhook confirma no servidor): consulta a cada 4s, ao voltar para a aba
+  // e na hora em que a janela de pagamento avisa que terminou.
   useEffect(() => {
     if (!isOpen || step !== "waiting" || !payment) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
+    const check = () => {
       fetch(`/api/payment/${payment.id}`, { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data: PublicPayment | null) => { if (data && data.status !== "PENDING") apply(data); })
         .catch(() => {});
-    }, POLL_MS);
-    return () => window.clearInterval(timer);
+    };
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") check(); }, POLL_MS);
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin === window.location.origin && event.data?.type === "oracle-payment-return" && event.data.id === payment.id) check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("message", onMessage);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("message", onMessage); };
   }, [isOpen, step, payment, apply]);
 
   if (!isOpen || typeof document === "undefined") return null;
 
+  // A página da InfinitePay abre numa janela/aba separada e a cena fica aguardando aqui.
+  // A janela é aberta já no toque (antes do fetch) para o navegador não bloquear o pop-up.
+  const openCheckout = (url: string, win?: Window | null) => {
+    const target = win ?? window.open("", "oracle-checkout", "popup,width=480,height=760");
+    if (target) { target.location.href = url; target.focus(); return true; }
+    return false;
+  };
+
   const pay = async () => {
     setBusy(true); setError(null);
+    const win = window.open("", "oracle-checkout", "popup,width=480,height=760");
     try {
       const res = await fetch("/api/payment/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -95,11 +111,15 @@ export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread
       });
       const data: PublicPayment & { error?: string } = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível abrir o pagamento.");
-      if (data.status === "PAID") return apply(data);
+      if (data.status === "PAID") { win?.close(); return apply(data); }
       if (!data.checkoutUrl) throw new Error("Não foi possível abrir o pagamento.");
       try { localStorage.setItem(storeKey(readingId), data.id); } catch {}
-      window.location.assign(data.checkoutUrl);
+      // Pop-up bloqueado: segue na mesma aba (o retorno reabre a consulta).
+      if (!openCheckout(data.checkoutUrl, win)) return window.location.assign(data.checkoutUrl);
+      apply(data);
+      setBusy(false);
     } catch (err) {
+      win?.close();
       setError(err instanceof Error ? err.message : "Não foi possível abrir o pagamento.");
       setBusy(false);
     }
@@ -149,9 +169,9 @@ export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread
           <div className={styles.form}>
             <p className={styles.waiting}><span className={styles.dot} /> Aguardando a confirmação…</p>
             {payment.checkoutUrl && (
-              <button type="button" className={styles.primary} onClick={() => window.location.assign(payment.checkoutUrl!)}>Ir para o pagamento</button>
+              <button type="button" className={styles.secondary} onClick={() => { if (!openCheckout(payment.checkoutUrl!)) window.location.assign(payment.checkoutUrl!); }}>Reabrir a página de pagamento</button>
             )}
-            <p className={styles.note}>Se já pagou, fique nesta tela: a confirmação chega em instantes e a mesa abre sozinha.</p>
+            <p className={styles.note}>Conclua o pagamento na página da InfinitePay que abriu. Pode deixar esta tela aberta: assim que o pagamento for confirmado, a mesa abre aqui sozinha.</p>
           </div>
         )}
 

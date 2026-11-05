@@ -2,6 +2,7 @@ import type { Payment } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getOrder, orderStatus } from "@/lib/pagbank";
 import { enqueueAllAudio } from "@/lib/audio";
+import { checkPayment, infinitePayRef, parseInfinitePayRef } from "@/lib/infinitepay";
 import type { AiReading } from "@/types";
 
 /** Aplica o resultado: pagamento de "unlock" abre a leitura de 5 cartas; "prepaid" é consumido pelo /reading/start. */
@@ -17,10 +18,31 @@ export async function markPayment(payment: Payment, status: "PAID" | "DECLINED" 
   return updated;
 }
 
-/** Reconsulta o pedido no PagBank e atualiza o pagamento pendente. */
+/** Pagamento pela InfinitePay: o link fica em pixText, sem QR (pixImage). */
+export const isCheckoutPayment = (payment: Payment) => !payment.pixImage && Boolean(payment.pixText?.startsWith("https://"));
+
+/**
+ * Guarda a transação informada pela InfinitePay (retorno ou webhook) e confirma no /payment_check.
+ * A referência só é gravada se a InfinitePay confirmar que esta transação pagou este pedido.
+ */
+export async function confirmCheckout(payment: Payment, slug: string, transactionNsu: string) {
+  if (payment.status !== "PENDING" || !isCheckoutPayment(payment)) return payment;
+  if (!/^[\w-]{1,120}$/.test(slug) || !/^[\w-]{1,120}$/.test(transactionNsu)) return payment;
+  if (!await checkPayment({ paymentId: payment.id, slug, transactionNsu, amount: payment.amount })) return payment;
+  const updated = await prisma.payment.update({ where: { id: payment.id }, data: { orderId: infinitePayRef(slug, transactionNsu) } })
+    .catch((error) => { console.error("[payment] referência InfinitePay repetida", payment.id, error?.code); return null; });
+  return updated ? markPayment(updated, "PAID") : payment;
+}
+
+/** Reconsulta o pedido (PagBank ou InfinitePay) e atualiza o pagamento pendente. */
 export async function refreshPayment(payment: Payment) {
   if (payment.status !== "PENDING" || !payment.orderId) return payment;
   try {
+    const ref = parseInfinitePayRef(payment.orderId);
+    if (ref) {
+      if (await checkPayment({ paymentId: payment.id, ...ref, amount: payment.amount })) return markPayment(payment, "PAID");
+      return payment;
+    }
     const status = orderStatus(await getOrder(payment.orderId, payment.kind === "test"), payment.amount);
     if (status !== "PENDING") return markPayment(payment, status);
   } catch (error) {
@@ -37,8 +59,9 @@ export const publicPayment = (payment: Payment) => ({
   readingId: payment.readingId,
   amount: payment.amount,
   status: payment.status,
-  pixText: payment.status === "PENDING" ? payment.pixText : null,
+  pixText: payment.status === "PENDING" && !isCheckoutPayment(payment) ? payment.pixText : null,
   pixImage: payment.status === "PENDING" ? payment.pixImage : null,
+  checkoutUrl: payment.status === "PENDING" && isCheckoutPayment(payment) ? payment.pixText : null,
   expiresAt: payment.expiresAt?.toISOString() ?? null,
 });
 

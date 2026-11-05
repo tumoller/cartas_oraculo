@@ -13,11 +13,17 @@ export type ValidPayment = { kind: "unlock" | "prepaid"; readingId: string; pric
  * Valida o pedido de pagamento (Pix ou cartão). Devolve erro, um pagamento já confirmado
  * desta consulta (não cobra duas vezes) ou os dados para cobrar.
  */
-export async function validatePaymentRequest(req: NextRequest, body: Body): Promise<{ error: string; status: number } | { paid: PublicPayment } | { ok: ValidPayment }> {
-  const { kind, readingId, spread, name, email, cpf } = body;
-  if (typeof name !== "string" || !name.trim() || name.length > 80) return { error: "Informe seu nome.", status: 400 };
-  if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) return { error: "Informe um e-mail válido.", status: 400 };
-  if (typeof cpf !== "string" || !validCpf(cpf)) return { error: "Informe um CPF válido.", status: 400 };
+export async function validatePaymentRequest(req: NextRequest, body: Body, requireCustomer = true): Promise<{ error: string; status: number } | { paid: PublicPayment } | { ok: ValidPayment }> {
+  const { kind, readingId, spread } = body;
+  // O checkout da InfinitePay pede os dados do comprador na página dela; o Pix/cartão do PagBank exige aqui.
+  const name = typeof body.name === "string" ? body.name : "";
+  const email = typeof body.email === "string" ? body.email : "";
+  const cpf = typeof body.cpf === "string" ? body.cpf : "";
+  if (requireCustomer) {
+    if (!name.trim() || name.length > 80) return { error: "Informe seu nome.", status: 400 };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) return { error: "Informe um e-mail válido.", status: 400 };
+    if (!validCpf(cpf)) return { error: "Informe um CPF válido.", status: 400 };
+  }
   if (typeof readingId !== "string" || !validReadingId(readingId)) return { error: "Consulta inválida.", status: 400 };
 
   let priced: PricedSpread;

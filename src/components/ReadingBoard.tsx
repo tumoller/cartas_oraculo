@@ -37,7 +37,10 @@ export function ReadingBoard({
   const [revealed, setRevealed] = useState(0);
   const [position, setPosition] = useState(1);
   const [activeView, setActiveView] = useState<"card" | "overview">("card");
-  const [isPixModalOpen, setIsPixModalOpen] = useState(false);
+  // Voltou da página de pagamento com um pagamento em andamento: reabre para mostrar a confirmação.
+  const [isPixModalOpen, setIsPixModalOpen] = useState(() => {
+    try { return !initialSession.isPaid && Boolean(localStorage.getItem(`oracle_payment_${initialSession.id}`)); } catch { return false; }
+  });
   const [enlargedPosition, setEnlargedPosition] = useState<number | null>(null);
   const [narration, setNarration] = useState<boolean | null>(initialNarration ?? null);
   const [autoplayChapter, setAutoplayChapter] = useState<string | null>(null);
@@ -342,11 +345,11 @@ export function ReadingBoard({
         kind="unlock"
         readingId={session.id}
         spread="line5"
-        defaultName={session.userName}
         onPaid={async () => {
           // O servidor já marcou a leitura como paga; recarrega o conteúdo completo.
           const response = await fetch(`/api/reading/${session.id}`, { cache: "no-store" });
           if (response.ok) setSession(await response.json());
+          try { localStorage.removeItem(`oracle_payment_${session.id}`); } catch {}
           setIsPixModalOpen(false);
         }}
       />

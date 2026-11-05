@@ -73,3 +73,12 @@ Fechamento: identificar serviço/deploy e commit atual, conferir tipo de conexã
 HTTPS é requisito para microfone fora de localhost. IP doméstico HTTP não valida microfone Android. Endereços LAN, processos e logs antigos são históricos; verificar os atuais. Logs de runtime devem ficar fora de `.next` para não bloquear recompilações no Windows.
 
 Validar reinício web/worker, persistência, cookie/acesso privado e recuperação após falha. Confirmação comercial inclui pagamento e recuperação quando implementados. Não prometer recursos inexistentes na demonstração.
+
+## Pagamento (InfinitePay)
+
+- Fluxo: `POST /api/payment/checkout` cria o link (order_nsu = id do Payment) → cliente paga Pix/cartão na página da InfinitePay → volta em `/api/payment/return/<id>` → redireciona para `/?pagamento=<id>`, onde o modal mostra a confirmação.
+- Webhook: `/api/payment/infinitepay` (enviado no link quando `PUBLIC_BASE_URL` é https). Não tem assinatura: todo aviso é confirmado em `/payment_check` antes de liberar.
+- Variáveis: `INFINITEPAY_HANDLE` (InfiniteTag sem `$`), `INFINITEPAY_API_KEY` opcional (link de uso único).
+- Sem sandbox: validar com uma compra real (mínimo R$ 1,00).
+- O link fica salvo em `Payment.pixText` (sem `pixImage`) e a transação confirmada em `Payment.orderId` como `ip:<slug>:<transaction_nsu>`.
+- PagBank (rotas `/api/payment/pix`, `/card`, `/webhook`, `/test`) segue no código, sem uso na tela, até a API de produção ser liberada.

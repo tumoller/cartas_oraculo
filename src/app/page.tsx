@@ -164,6 +164,19 @@ export default function Home() {
     finally { setIsLoading(false); }
   };
 
+  // Volta da página da InfinitePay (/?pagamento=id): leitura de 5 cartas reabre com o pagamento na tela.
+  // A mesa de 9/36 é retomada pelo oracle_pending acima.
+  useEffect(() => {
+    const returned = new URLSearchParams(window.location.search).get("pagamento");
+    if (!returned) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    fetch(`/api/payment/${encodeURIComponent(returned)}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payment) => { if (payment?.kind === "unlock" && typeof payment.readingId === "string") void openSaved(payment.readingId); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleStartReading = (e: React.FormEvent) => {
     e.preventDefault();
     void startReading();
@@ -555,8 +568,8 @@ export default function Home() {
 
                 <p className="text-xs sm:text-sm text-slate-300 rounded-xl p-3.5 bg-indigo-950/40 border border-indigo-500/30">
                   {spread === "line5"
-                    ? `As 3 primeiras cartas são grátis. A leitura completa custa ${formatBRL(PRICES.line5)} no Pix.`
-                    : `Esta mesa custa ${formatBRL(PRICES[spread as PricedSpread])} no Pix. As cartas são sorteadas assim que o pagamento é confirmado.`}
+                    ? `As 3 primeiras cartas são grátis. A leitura completa custa ${formatBRL(PRICES.line5)} (Pix ou cartão).`
+                    : `Esta mesa custa ${formatBRL(PRICES[spread as PricedSpread])} (Pix ou cartão). As cartas são sorteadas assim que o pagamento é confirmado.`}
                 </p>
 
                 <fieldset className="min-w-0">
@@ -660,7 +673,6 @@ export default function Home() {
           kind="prepaid"
           readingId={requestIdentity.requestId}
           spread={spread as PricedSpread}
-          defaultName={userName}
           onPaid={(payment) => { setPayOpen(false); void startReading(payment.id); }}
         />
       )}

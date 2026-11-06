@@ -13,7 +13,8 @@ export async function markPayment(payment: Payment, status: "PAID" | "DECLINED" 
     const reading = await prisma.readingSession.update({ where: { id: payment.readingId }, data: { isPaid: true } })
       .catch((error) => { console.error("[payment] unlock falhou", payment.id, error?.code); return null; });
     // Já começa a gerar a voz de todos os capítulos enquanto a pessoa revela as cartas.
-    if (reading) await enqueueAllAudio(reading.aiReading as unknown as AiReading, reading.persona);
+    // Numerologia e mapa (aiReading.product) ainda não têm voz na V1.
+    if (reading && !(reading.aiReading as { product?: unknown } | null)?.product) await enqueueAllAudio(reading.aiReading as unknown as AiReading, reading.persona);
   }
   return updated;
 }

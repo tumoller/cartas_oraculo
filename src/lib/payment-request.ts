@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publicPayment, type PublicPayment } from "@/lib/payments";
-import { PRICES, validCpf, type PricedSpread } from "@/lib/pricing";
+import { isProductKey, PRICES, validCpf, type PricedSpread } from "@/lib/pricing";
 import { requireReadingAccess, validReadingId } from "@/lib/reading-access";
 
-export const TITLES: Record<PricedSpread, string> = { line5: "Leitura completa de 5 cartas", box9: "Leitura do Quadro de 9 cartas", grand36: "Mesa Real de 36 cartas" };
+export const TITLES: Record<PricedSpread, string> = { line5: "Leitura completa de 5 cartas", box9: "Leitura do Quadro de 9 cartas", grand36: "Mesa Real de 36 cartas", numerologia: "Mapa numerológico completo", "mapa-simples": "Mapa astral (sem hora de nascimento)", "mapa-completo": "Mapa astral completo" };
 
 type Body = { kind?: unknown; readingId?: unknown; spread?: unknown; name?: unknown; email?: unknown; cpf?: unknown };
 export type ValidPayment = { kind: "unlock" | "prepaid"; readingId: string; priced: PricedSpread; amount: number; name: string; email: string; taxId: string; notificationUrl?: string };
@@ -32,7 +32,9 @@ export async function validatePaymentRequest(req: NextRequest, body: Body, requi
     const reading = await prisma.readingSession.findUnique({ where: { id: readingId } });
     if (!reading) return { error: "Consulta não encontrada.", status: 404 };
     if (reading.isPaid) return { error: "Esta leitura já está aberta.", status: 409 };
-    priced = "line5";
+    // Produtos além do Lenormand (numerologia, mapa) gravam o próprio preço em aiReading.product.
+    const product = (reading.aiReading as { product?: unknown } | null)?.product;
+    priced = typeof product === "string" && isProductKey(product) ? product : "line5";
   } else if (kind === "prepaid" && (spread === "box9" || spread === "grand36")) {
     priced = spread;
   } else {

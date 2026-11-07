@@ -63,7 +63,22 @@ Seja brutalmente honesto no relatório final: o que foi verificado, o que não f
 
 ---
 
-## Sessão 1 — Motor do mapa completo + mapa grátis como isca
+## Sessão 1 — Motor do mapa completo + mapa grátis como isca — ✅ FEITO (commit 55383e5, 2026-11-07)
+**Resultado:**
+- `natal.ts`: dignidades (Ptolomeu + regentes modernos; exaltação só dos 7 tradicionais), decanato, Lilith média (Meeus 47.7), Parte da Fortuna diurna/noturna com seita, elementos ponderados (pesos próprios em `ELEMENT_WEIGHTS`) e polaridade. Quíron ficou de fora, como previsto.
+- **Bug da V1 corrigido:** os aspectos usavam `180 − separação`, trocando conjunção com oposição e trígono com sextil. As leituras geradas antes deste commit foram interpretadas com aspectos errados.
+- Teste de regressão do Arthur (01/03/1991, 21h45, São Paulo-SP) em `tests/natal.test.mjs`: Sol, Lua, Asc, MC, **Lilith 23° Sagitário e Fortuna 27° Áries**, conferidos no Astrolink.
+- Roda em SVG: `src/components/ChartWheel.tsx` + `src/lib/chart-wheel.ts`.
+- Mapa grátis: roda + tabela (com nodo, Lilith, Fortuna, Asc, MC e dignidades) + elementos/polaridade + trio grátis. As seções temáticas continuam pagas.
+- **Decisão 1:** o usuário escolheu exigir o e-mail. Ele é obrigatório só no mapa e fica gravado em `aiReading.contact` (e-mail, opt-in de novidades, data e versão do aviso), sem migration e sem voltar no payload.
+- UX: o modal não fala mais de "cartas" nos produtos, a home tem links para mapa e numerologia, e os cards de persona têm foco visível.
+**Pendente:**
+- Texto de LGPD **provisório** (`src/lib/contact-notice.ts`): revisar com o P5. Ainda não há política de privacidade nem canal para pedir exclusão.
+- Os e-mails ficam no JSON da sessão. Uma tabela própria de contatos fica para a Sessão 5 (contas).
+- Sessões antigas guardam os aspectos errados e não têm os campos novos. A tela tolera a falta dos campos, mas a roda delas desenha os aspectos errados.
+- Não testado com o banco e o Gemini reais: a verificação no navegador simulou a API para não gravar na produção.
+- Os pesos dos elementos são uma escolha nossa, não os do Astrolink.
+
 **Objetivo:** igualar o conteúdo técnico ao do concorrente e transformar o mapa básico na porta de entrada.
 - Em `natal.ts`:
   - **Dignidades:** tabela fixa por planeta e signo.

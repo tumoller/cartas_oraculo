@@ -9,6 +9,7 @@ import { findCity, type City } from "@/lib/cities";
 import { generateProductReading, productData } from "@/lib/products";
 import { productPayload, type ProductMeta } from "@/lib/product-session";
 import type { ProductKey } from "@/lib/pricing";
+import { CONTACT_NOTICE_VERSION } from "@/lib/contact-notice";
 
 const PERSONAS = ["Oráculo da Galáxia", "Cigana Tradicional", "Linha de Umbanda"];
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
   let meta: ProductMeta | undefined;
   try {
     const body = await req.json();
-    const { product, fullName, persona, birthDate, birthTime, city, requestId, requestKey } = body ?? {};
+    const { product, fullName, persona, birthDate, birthTime, city, email, marketing, requestId, requestKey } = body ?? {};
     if (product !== "numerologia" && product !== "mapa") return bad("Produto inválido.");
     if (typeof fullName !== "string") return bad("Informe seu nome completo.");
     const name = fullName.trim().replace(/\s+/g, " ");
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
     if (product === "mapa") {
       cityFound = city && typeof city.name === "string" && typeof city.uf === "string" ? findCity(city.name, city.uf) : null;
       if (!cityFound) return bad("Escolha a cidade de nascimento na lista.");
+      if (typeof email !== "string" || email.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return bad("Informe um e-mail válido.");
     }
     if (typeof requestId !== "string" || !validReadingId(requestId) || typeof requestKey !== "string" || !validReadingId(requestKey)) return bad("Identificação ausente. Reabra o formulário.");
 
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
         calc = { chart, city: { name: cityFound!.name, uf: cityFound!.uf }, birthTime: time || null };
       }
       meta = { product: productKey, status: "generating", requestHash, startedAt: Date.now() };
+      if (product === "mapa") meta.contact = { email: (email as string).trim().toLowerCase(), marketing: marketing === true, consentAt: new Date().toISOString(), notice: CONTACT_NOTICE_VERSION };
       session = await prisma.readingSession.create({
         data: { id: requestId, userName: firstName, persona, theme: product === "numerologia" ? "Numerologia" : "Mapa Astral", cardsDrawn: json(calc), aiReading: json(meta) },
       });

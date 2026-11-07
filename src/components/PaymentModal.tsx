@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { sceneAssets, paymentLoops } from "@/lib/scene-assets";
-import { formatBRL, PRICES, type PricedSpread } from "@/lib/pricing";
+import { formatBRL, isProductKey, PRICES, type PricedSpread } from "@/lib/pricing";
 import type { PublicPayment } from "@/lib/payments";
 import styles from "./PaymentModal.module.css";
 
@@ -28,6 +28,13 @@ const LINES: Record<Step, string> = {
   waiting: "Estou sentindo a sua energia chegar… assim que o pagamento for confirmado, as cartas falam.",
   paid: "Recebido. Vamos consultar a sua sorte.",
   declined: "O pagamento não chegou até mim. Quer tentar de novo?",
+};
+// Numerologia e mapa astral não usam cartas.
+const PRODUCT_LINES: Record<Step, string> = {
+  form: "Toda consulta pede uma troca. Faça o pagamento e eu abro a sua leitura completa.",
+  waiting: "Estou sentindo a sua energia chegar… assim que o pagamento for confirmado, sua leitura se abre.",
+  paid: "Recebido. Vamos à sua leitura completa.",
+  declined: LINES.declined,
 };
 
 export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread, onPaid }: Props) {
@@ -148,7 +155,7 @@ export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread
         <button type="button" className={styles.close} onClick={onClose} aria-label="Fechar pagamento">✕</button>
       )}
 
-      <p className={styles.line} key={step}>“{LINES[step]}”</p>
+      <p className={styles.line} key={step}>“{(isProductKey(spread) ? PRODUCT_LINES : LINES)[step]}”</p>
 
       <div className={styles.sheet}>
         <h2 id="payment-title" className={styles.title}>

@@ -12,8 +12,9 @@
 .check { display: flex; align-items: center; gap: 10px; font-size: .95rem; color: #cbd5e1; min-height: 44px; }
 .check input { width: 20px; height: 20px; accent-color: #a78bfa; }
 .personas { display: grid; gap: 10px; border: 0; padding: 0; margin: 0; }
-.persona { display: block; cursor: pointer; padding: 12px 14px; border-radius: 12px; border: 1px solid #3b3566; background: rgba(30, 27, 75, .45); }
+.persona { position: relative; display: block; cursor: pointer; padding: 12px 14px; border-radius: 12px; border: 1px solid #3b3566; background: rgba(30, 27, 75, .45); }
 .persona input { position: absolute; opacity: 0; pointer-events: none; }
+.persona:focus-within { outline: 2px solid #d9c58c; outline-offset: 2px; }
 .persona[data-on="true"] { border-color: #d9c58c; background: rgba(76, 61, 122, .5); }
 .personaTitle { font-weight: 600; color: #f1f5f9; }
 .personaDesc { font-size: .875rem; color: #94a3b8; margin-top: 2px; }
@@ -49,3 +50,19 @@
 .blur { margin-top: 10px; height: 4.5rem; border-radius: 8px; background: repeating-linear-gradient(#64748b 0 10px, transparent 10px 22px); opacity: .35; filter: blur(5px); }
 .ctaWrap { margin-top: 24px; display: flex; flex-direction: column; }
 .again { margin-top: 28px; background: transparent; border: 0; color: #c4b5fd; text-decoration: underline; cursor: pointer; font-size: .9rem; min-height: 44px; }
+.wheel { margin-top: 20px; color: #e9d5ff; }
+.dignity { display: block; font-size: .72rem; color: #d9c58c; }
+.balance { margin-top: 20px; padding: 14px 16px; border-radius: 12px; border: 1px solid #3b3566; background: rgba(30, 27, 75, .35); }
+.balanceTitle { font-family: Georgia, serif; font-size: 1.05rem; color: #f3e3a6; margin-bottom: 8px; }
+.bar { display: grid; grid-template-columns: 4.2rem 1fr 2.6rem; align-items: center; gap: 8px; font-size: .88rem; margin-top: 6px; }
+.barLabel { color: #cbd5e1; }
+.barTrack { height: 8px; border-radius: 4px; background: rgba(148, 163, 184, .18); overflow: hidden; }
+.barFill { display: block; height: 100%; border-radius: 4px; background: #a78bfa; }
+.barFill[data-el="Fogo"] { background: #f97316; }
+.barFill[data-el="Terra"] { background: #84cc16; }
+.barFill[data-el="Ar"] { background: #38bdf8; }
+.barFill[data-el="Água"] { background: #818cf8; }
+.barPct { text-align: right; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.trio { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.trio .stat { padding: 10px 6px; }
+.trio .statValue { font-size: 1.15rem; overflow-wrap: anywhere; }

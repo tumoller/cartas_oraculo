@@ -661,6 +661,18 @@ export default function Home() {
               Como funciona
             </Link>
           </div>
+
+          {/* Outros produtos */}
+          <nav aria-label="Outras leituras" className="mt-4 grid grid-cols-2 gap-3">
+            <Link href="/mapa-astral" className="min-h-12 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-200 hover:border-amber-300/60">
+              <span className="block font-semibold">Mapa Astral</span>
+              <span className="block text-xs text-slate-400">Roda e posições grátis</span>
+            </Link>
+            <Link href="/numerologia" className="min-h-12 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-200 hover:border-amber-300/60">
+              <span className="block font-semibold">Numerologia</span>
+              <span className="block text-xs text-slate-400">Seus números pessoais</span>
+            </Link>
+          </nav>
         </div>
       )}
 

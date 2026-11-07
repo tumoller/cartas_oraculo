@@ -21,7 +21,8 @@ const norm360 = (x: number) => ((x % 360) + 360) % 360;
 const sin = (d: number) => Math.sin(d * rad), cos = (d: number) => Math.cos(d * rad), tan = (d: number) => Math.tan(d * rad);
 const atan2 = (y: number, x: number) => norm360(Math.atan2(y, x) / rad);
 
-export type Placement = { sign: string; degree: number; minute: number; longitude: number; house?: number; retrograde?: boolean };
+export type Dignity = "Domicílio" | "Exaltação" | "Exílio" | "Queda";
+export type Placement = { sign: string; degree: number; minute: number; longitude: number; decan: 1 | 2 | 3; house?: number; retrograde?: boolean; dignities?: Dignity[] };
 export type Aspect = { a: string; b: string; type: string; orb: number };
 export type NatalInput = {
   date: { day: number; month: number; year: number };
@@ -40,14 +41,63 @@ export type NatalChart = {
   northNode: Placement;         // nodo médio
   moonUncertain?: string[];     // mapa simples: Lua troca de signo no dia
   aspects: Aspect[];
-  elements: Record<string, number>;
+  elements: Record<string, number>;   // contagem simples dos 10 planetas
   modalities: Record<string, number>;
+  lilith: Placement;            // Lua Negra média (apogeu lunar médio)
+  sect?: "diurno" | "noturno";  // mapa completo: Sol acima (casas 7-12) ou abaixo do horizonte
+  fortune?: Placement;          // Parte da Fortuna (mapa completo)
+  elementsWeighted: Record<string, number>; // % com os pesos de ELEMENT_WEIGHTS
+  polarity: { Yang: number; Yin: number };  // % ponderada: Yang = Fogo + Ar, Yin = Terra + Água
 };
 
 export function placement(longitude: number): Placement {
   const lon = norm360(longitude);
   const inSign = lon % 30;
-  return { sign: SIGNS[Math.floor(lon / 30)], degree: Math.floor(inSign), minute: Math.floor((inSign % 1) * 60), longitude: Math.round(lon * 1e4) / 1e4 };
+  return {
+    sign: SIGNS[Math.floor(lon / 30)], degree: Math.floor(inSign), minute: Math.floor((inSign % 1) * 60),
+    longitude: Math.round(lon * 1e4) / 1e4, decan: (Math.floor(inSign / 10) + 1) as 1 | 2 | 3,
+  };
+}
+
+// ---------- dignidades ----------
+// Domicílios tradicionais (Ptolomeu, Tetrabiblos I.17) + regentes modernos dos transpessoais
+// (Urano/Aquário, Netuno/Peixes, Plutão/Escorpião). Exaltações só dos 7 tradicionais (Tetrabiblos I.19);
+// as dos transpessoais não têm consenso e ficam de fora. Exílio = signo oposto ao domicílio; queda = oposto à exaltação.
+const DOMICILE: Record<string, string[]> = {
+  Sol: ["Leão"], Lua: ["Câncer"], Mercúrio: ["Gêmeos", "Virgem"], Vênus: ["Touro", "Libra"], Marte: ["Áries", "Escorpião"],
+  Júpiter: ["Sagitário", "Peixes"], Saturno: ["Capricórnio", "Aquário"], Urano: ["Aquário"], Netuno: ["Peixes"], Plutão: ["Escorpião"],
+};
+const EXALTATION: Record<string, string> = {
+  Sol: "Áries", Lua: "Touro", Mercúrio: "Virgem", Vênus: "Peixes", Marte: "Capricórnio", Júpiter: "Câncer", Saturno: "Libra",
+};
+const opposite = (sign: string) => SIGNS[(SIGNS.indexOf(sign as (typeof SIGNS)[number]) + 6) % 12];
+
+export function dignitiesOf(planet: string, sign: string): Dignity[] {
+  const out: Dignity[] = [];
+  const dom = DOMICILE[planet] ?? [], exa = EXALTATION[planet];
+  if (dom.includes(sign)) out.push("Domicílio");
+  if (exa === sign) out.push("Exaltação");
+  if (dom.some((d) => opposite(d) === sign)) out.push("Exílio");
+  if (exa && opposite(exa) === sign) out.push("Queda");
+  return out;
+}
+
+// ---------- elementos ponderados ----------
+// Pesos PRÓPRIOS deste projeto (não são os do Astrolink, que não publica os dele): os pontos pessoais
+// pesam mais, os planetas sociais menos e os geracionais quase nada. Ascendente só no mapa completo.
+export const ELEMENT_WEIGHTS: Record<string, number> = {
+  Sol: 3, Lua: 3, Ascendente: 3, Mercúrio: 2, Vênus: 2, Marte: 2, Júpiter: 1, Saturno: 1, Urano: 0.5, Netuno: 0.5, Plutão: 0.5,
+};
+
+/** Arredonda porcentagens para inteiros que somam 100 (maiores restos). */
+export function percentages<K extends string>(values: Record<K, number>): Record<K, number> {
+  const keys = Object.keys(values) as K[], total = keys.reduce((a, k) => a + values[k], 0);
+  if (!total) return Object.fromEntries(keys.map((k) => [k, 0])) as Record<K, number>;
+  const raw = keys.map((k) => (values[k] / total) * 100), out = raw.map(Math.floor);
+  const order = raw.map((r, i) => [r - out[i], i] as const).sort((a, b) => b[0] - a[0]);
+  const missing = 100 - out.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < missing; i++) out[order[i][1]]++;
+  return Object.fromEntries(keys.map((k, i) => [k, out[i]])) as Record<K, number>;
 }
 
 // ---------- tempo ----------
@@ -83,6 +133,17 @@ function eclipticLongitude(body: A.Body, time: A.AstroTime): number {
 function meanNode(time: A.AstroTime): number {
   const T = time.tt / 36525;
   return norm360(125.0445479 - 1934.1362891 * T + 0.0020754 * T * T);
+}
+
+/** Lilith média = perigeu lunar médio + 180° (Meeus, Astronomical Algorithms, 2ª ed., eq. 47.7). T em séculos julianos TT desde J2000. */
+export function meanLilith(T: number): number {
+  const perigee = 83.3532465 + 4069.0137287 * T - 0.01032 * T * T - (T * T * T) / 80053 + (T * T * T * T) / 18999000;
+  return norm360(perigee + 180);
+}
+
+/** Parte da Fortuna: de dia Asc + Lua − Sol; de noite Asc + Sol − Lua. */
+export function partOfFortune(asc: number, sun: number, moon: number, sect: "diurno" | "noturno"): number {
+  return norm360(sect === "diurno" ? asc + moon - sun : asc + sun - moon);
 }
 
 // ---------- ângulos e casas ----------
@@ -143,8 +204,7 @@ function aspectsBetween(points: Array<[string, number]>): Aspect[] {
   const out: Aspect[] = [];
   for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) {
     const [a, la] = points[i], [b, lb] = points[j];
-    const diff = Math.abs(((la - lb + 540) % 360) - 180); // 0..180
-    const sep = 180 - diff;
+    const sep = Math.abs(((la - lb + 540) % 360) - 180); // separação angular, 0..180
     const bonus = [a, b].some((n) => n === "Sol" || n === "Lua") ? 2 : 0;
     for (const asp of ASPECTS) {
       const orb = Math.abs(sep - asp.angle);
@@ -183,7 +243,14 @@ export function natalChart(input: NatalInput): NatalChart {
     aspects: aspectsBetween(PLANETS.map(([n]) => [n, planets[n].longitude])),
     elements: Object.fromEntries(ELEMENT.map((e) => [e, 0])),
     modalities: Object.fromEntries(MODALITY.map((m) => [m, 0])),
+    lilith: placement(meanLilith(t.tt / 36525)),
+    elementsWeighted: {},
+    polarity: { Yang: 0, Yin: 0 },
   };
+  for (const [name] of PLANETS) {
+    const d = dignitiesOf(name, planets[name].sign);
+    if (d.length) planets[name].dignities = d;
+  }
 
   for (const [name] of PLANETS) {
     const idx = SIGNS.indexOf(planets[name].sign as (typeof SIGNS)[number]);
@@ -199,11 +266,23 @@ export function natalChart(input: NatalInput): NatalChart {
     chart.midheaven = placement(cusps[9]);
     for (const [name] of PLANETS) planets[name].house = houseOf(planets[name].longitude, cusps);
     chart.northNode.house = houseOf(chart.northNode.longitude, cusps);
+    chart.lilith.house = houseOf(chart.lilith.longitude, cusps);
+    // Sol nas casas 7 a 12 = acima do horizonte (a cúspide 1 é o Ascendente e a 7 o Descendente).
+    chart.sect = (planets["Sol"].house ?? 1) >= 7 ? "diurno" : "noturno";
+    chart.fortune = placement(partOfFortune(cusps[0], planets["Sol"].longitude, planets["Lua"].longitude, chart.sect));
+    chart.fortune.house = houseOf(chart.fortune.longitude, cusps);
   } else {
     const start = localToUtc(date, 0, 0, place.timeZone).utcMs, end = localToUtc(date, 23, 59, place.timeZone).utcMs;
     const a = placement(eclipticLongitude(A.Body.Moon, A.MakeTime(new Date(start)))).sign;
     const b = placement(eclipticLongitude(A.Body.Moon, A.MakeTime(new Date(end)))).sign;
     if (a !== b) chart.moonUncertain = [a, b];
   }
+
+  const weighted: Record<string, number> = Object.fromEntries(ELEMENT.map((e) => [e, 0]));
+  const signs: Array<[string, string]> = PLANETS.map(([n]) => [n, planets[n].sign]);
+  if (chart.ascendant) signs.push(["Ascendente", chart.ascendant.sign]);
+  for (const [name, sign] of signs) weighted[ELEMENT[SIGNS.indexOf(sign as (typeof SIGNS)[number]) % 4]] += ELEMENT_WEIGHTS[name];
+  chart.elementsWeighted = percentages(weighted);
+  chart.polarity = percentages({ Yang: weighted["Fogo"] + weighted["Ar"], Yin: weighted["Terra"] + weighted["Água"] });
   return chart;
 }

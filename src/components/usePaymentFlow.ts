@@ -107,5 +107,21 @@ export function usePaymentFlow({ isOpen, kind, readingId, spread, onPaid }: Opti
 
   const reopen = () => { if (payment?.checkoutUrl && !openCheckout(payment.checkoutUrl)) window.location.assign(payment.checkoutUrl); };
 
-  return { step, payment, busy, error, pay, retry, reopen };
+  // Só no `npm run dev`: registra o pagamento como pago sem passar pela InfinitePay (em produção é undefined).
+  const simulate = process.env.NODE_ENV === "development" ? async () => {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch("/api/payment/simulate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, readingId, spread }),
+      });
+      const data: PublicPayment & { error?: string } = await res.json();
+      if (!res.ok) throw new Error(data.error || "Simulação falhou.");
+      apply(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Simulação falhou.");
+    } finally { setBusy(false); }
+  } : undefined;
+
+  return { step, payment, busy, error, pay, retry, reopen, simulate };
 }

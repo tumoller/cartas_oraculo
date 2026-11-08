@@ -5,6 +5,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 // prod=true força produção com PAGBANK_PROD_TOKEN (página de teste do Pix real, mesmo com o site em sandbox).
 const base = (prod = false) => prod || process.env.PAGBANK_ENV === "production" ? "https://api.pagseguro.com" : "https://sandbox.api.pagseguro.com";
 export const pagbankSandbox = () => process.env.PAGBANK_ENV !== "production";
+/** Sandbox do PagBank em produção liberaria leitura com cartão de teste: só conta real ou `npm run dev`. */
+export const pagbankEnabled = () => process.env.PAGBANK_ENV === "production" || process.env.NODE_ENV === "development";
 
 function headers(prod = false) {
   const token = prod ? process.env.PAGBANK_PROD_TOKEN : process.env.PAGBANK_TOKEN;

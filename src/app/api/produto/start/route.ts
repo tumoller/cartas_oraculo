@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         });
         calc = { chart, city: { name: cityFound!.name, uf: cityFound!.uf }, birthTime: time || null };
       }
-      meta = { product: productKey, status: "generating", requestHash, startedAt: Date.now() };
+      meta = { product: productKey, status: "generating", requestHash, startedAt: Date.now(), paid: "none" };
       if (product === "mapa") meta.contact = { email: (email as string).trim().toLowerCase(), marketing: marketing === true, consentAt: new Date().toISOString(), notice: CONTACT_NOTICE_VERSION };
       session = await prisma.readingSession.create({
         data: { id: requestId, userName: firstName, persona: PERSONA, theme: product === "numerologia" ? "Numerologia" : "Mapa Astral", cardsDrawn: json(calc), aiReading: json(meta) },
@@ -74,9 +74,11 @@ export async function POST(req: NextRequest) {
     }
     sessionId = session.id;
     const saved = session.cardsDrawn as unknown as { numerology?: NumerologyProfile; chart?: NatalChart };
+    // Só a parte grátis agora; as seções pagas são escritas quando a pessoa abre o pagamento (lib/paid-part).
     const reading = await generateProductReading(
       meta!.product as ProductKey,
       productData({ firstName: session.userName, numerology: saved.numerology, chart: saved.chart }),
+      "free",
     );
     session = await prisma.readingSession.update({ where: { id: session.id }, data: { aiReading: json({ ...meta, status: "ready", reading }) } });
     return grantReadingAccess(NextResponse.json(productPayload(session), { status: 201 }), req, session.id);

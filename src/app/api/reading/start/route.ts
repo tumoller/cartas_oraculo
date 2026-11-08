@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { drawDistinctCards } from "@/lib/draw";
 import { cardNameForDeck } from "@/lib/card-name";
-import { generateOraculoReading } from "@/lib/gemini";
+import { generateFreeReading } from "@/lib/gemini";
+import { paidPartReady, startPaidPart, waitPaidPart } from "@/lib/paid-part";
 import { generateSpreadReading, SPREADS, SpreadId } from "@/lib/spreads";
 import type { ReadingDepth } from "@/lib/spread-config";
 import { prisma } from "@/lib/prisma";
@@ -28,7 +29,11 @@ export async function POST(req: NextRequest) {
     if (draft) {
       const saved = draft.aiReading as Record<string, unknown>;
       if (saved.requestHash !== requestHash) return NextResponse.json({ error: "Consulta não autorizada." }, { status: 403 });
-      if (saved.status === "ready") return grantReadingAccess(NextResponse.json(sanitizeReadingSession(draft)), req, draft.id);
+      if (saved.status === "ready") {
+        // Já paga, mas a parte paga ainda está sendo escrita: espera um pouco antes de devolver.
+        if (draft.isPaid && !paidPartReady(draft)) { startPaidPart(draft.id); draft = (await waitPaidPart(draft.id, 90_000)) ?? draft; }
+        return grantReadingAccess(NextResponse.json(sanitizeReadingSession(draft)), req, draft.id);
+      }
       // "generating" parado há mais de 8 min = processo caiu no meio (deploy, timeout): libera nova tentativa.
       const startedAt = typeof saved.startedAt === "number" ? saved.startedAt : draft.createdAt.getTime();
       const stale = saved.status === "generating" && Date.now() - startedAt > 8 * 60_000;
@@ -37,7 +42,9 @@ export async function POST(req: NextRequest) {
       if (retry.count !== 1) return NextResponse.json({ error: "Consulta em processamento." }, { status: 409 });
       metadata = { ...saved, status: "generating", startedAt: Date.now() };
     } else {
-      if (spread !== "line5" && (process.env.ORACLE_DEMO_MODE !== "true" || demoAccess !== true)) {
+      // Modo demonstração só funciona no `npm run dev`, nunca em produção.
+      const demo = process.env.ORACLE_DEMO_MODE === "true" && process.env.NODE_ENV === "development" && demoAccess === true;
+      if (spread !== "line5" && !demo) {
         // 9/36 são pagas antes do sorteio: exige um Pix confirmado para ESTA consulta e tiragem.
         const payment = typeof paymentId === "string" && validReadingId(paymentId) ? await prisma.payment.findUnique({ where: { id: paymentId } }) : null;
         if (!payment || payment.status !== "PAID" || payment.kind !== "prepaid" || payment.readingId !== requestId || payment.spread !== spread) {
@@ -51,7 +58,7 @@ export async function POST(req: NextRequest) {
         const imageUrl = existsSync(path.join(process.cwd(), "public", jpg)) ? jpg : png;
         return { ...card, name: cardNameForDeck(card, persona)!, imageUrl: existsSync(path.join(process.cwd(), "public", imageUrl)) ? imageUrl : "" };
       });
-      metadata = { requestHash, status: "generating", startedAt: Date.now(), question: question.trim(), spread, readingDepth, methodVersion: spread === "line5" ? "lenormand-line-v1" : `lenormand-${spread}-v2` };
+      metadata = { requestHash, status: "generating", startedAt: Date.now(), question: question.trim(), spread, readingDepth, methodVersion: spread === "line5" ? "lenormand-line-v2" : `lenormand-${spread}-v2`, ...(spread === "line5" ? { paid: "none" } : {}) };
       draft = await prisma.readingSession.create({ data: { id: requestId, userName: userName.trim(), persona, theme, cardsDrawn: cards as unknown as Prisma.InputJsonValue, aiReading: metadata as unknown as Prisma.InputJsonValue, isPaid: spread !== "line5" } });
     }
     draftId = draft.id;
@@ -59,7 +66,8 @@ export async function POST(req: NextRequest) {
     const cardsDrawn = draft.cardsDrawn as unknown as Card[];
     const savedSpread = metadata.spread as SpreadId;
     const params = { userName: draft.userName, persona: draft.persona, theme: draft.theme, question: metadata.question as string, cardsDrawn };
-    const reading = savedSpread === "line5" ? await generateOraculoReading(params) : await generateSpreadReading({ ...params, spread: savedSpread, cards: cardsDrawn, readingDepth: (metadata.readingDepth as ReadingDepth) || "complete" });
+    // Linha de 5: só a parte grátis agora; a paga é escrita quando a pessoa abre o pagamento (lib/paid-part).
+    const reading = savedSpread === "line5" ? await generateFreeReading(params) : await generateSpreadReading({ ...params, spread: savedSpread, cards: cardsDrawn, readingDepth: (metadata.readingDepth as ReadingDepth) || "complete" });
     const session = await prisma.readingSession.update({ where: { id: draft.id }, data: { aiReading: { ...metadata, ...reading, status: "ready" } as unknown as Prisma.InputJsonValue } });
     if (session.isPaid) await enqueueAllAudio(session.aiReading as unknown as AiReading, session.persona);
     return grantReadingAccess(NextResponse.json(sanitizeReadingSession(session), { status: 201 }), req, session.id);

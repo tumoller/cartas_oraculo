@@ -22,7 +22,9 @@ import { ReadingBoard } from "@/components/ReadingBoard";
 import { SpreadBoard } from "@/components/SpreadBoard";
 import { SPREADS, SpreadId } from "@/lib/spread-config";
 import { formatBRL, PRICES, type PricedSpread } from "@/lib/pricing";
+import { fetchReady } from "@/lib/fetch-ready";
 import { PaymentModal } from "@/components/PaymentModal";
+import { useElapsedMessage } from "@/components/useElapsedMessage";
 import { setSoundPreference, useSoundPreference } from "@/lib/sound-preference";
 import { getReadingFontSize, setReadingFontSize } from "@/lib/reading-font";
 import { PersonaType, ThemeType, ReadingSessionPayload } from "@/types";
@@ -92,6 +94,13 @@ export default function CardsApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<"opening" | "concentrating" | "awakening">("opening");
+  const waitMessage = useElapsedMessage(isLoading, [
+    { at: 0, text: "" },
+    { at: 10, text: "Embaralhando e lendo as cartas…" },
+    { at: 25, text: "Escrevendo a interpretação para a sua pergunta…" },
+    { at: 45, text: "As mesas maiores levam mais tempo. Continua em andamento…" },
+    { at: 75, text: "Quase lá. Não feche esta página…" },
+  ]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<ReadingSessionPayload | null>(
     null
@@ -151,7 +160,7 @@ export default function CardsApp() {
     setLoadingSaved(true);
     setIsLoading(true); setErrorMessage(null);
     try {
-      const response = await fetch(`/api/reading/${id}`, { cache: "no-store" });
+      const response = await fetchReady(`/api/reading/${id}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível abrir a consulta.");
       setLoadingPhase("awakening");
@@ -501,7 +510,7 @@ export default function CardsApp() {
                     5. Escolha quantas cartas abrir:
                   </legend>
                   <div className="grid grid-cols-2 gap-2.5">
-                    {Object.entries(SPREADS).map(([id, item]) => (
+                    {Object.entries(SPREADS).filter(([id]) => id in PRICES).map(([id, item]) => (
                       <button
                         key={id}
                         type="button"
@@ -751,6 +760,9 @@ export default function CardsApp() {
                 ? "As cartas foram dispostas na mesa. Entrando na sua consulta…"
                 : "Sua leitura está sendo preparada com atenção. Em instantes, os olhos se abrem e você poderá revelar as cartas no seu ritmo."}
             </p>
+            {loadingPhase === "concentrating" && waitMessage && (
+              <p aria-live="polite" className="mt-2 max-w-md text-sm leading-relaxed text-slate-300/80">{waitMessage}</p>
+            )}
           </div>
         </div>
       )}

@@ -8,7 +8,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   try {
     const { id } = params;
     if (!requireReadingAccess(req, id)) return NextResponse.json({ error: "Acesso à consulta não autorizado." }, { status: 403 });
-    if (process.env.ORACLE_DEMO_MODE !== "true") return NextResponse.json({ error: "Simulação indisponível. O pagamento real ainda não foi integrado." }, { status: 403 });
+    if (process.env.ORACLE_DEMO_MODE !== "true" || process.env.NODE_ENV !== "development") return NextResponse.json({ error: "Simulação indisponível. O pagamento real ainda não foi integrado." }, { status: 403 });
 
     if (!id) {
       return NextResponse.json({ error: "ID não fornecido." }, { status: 400 });

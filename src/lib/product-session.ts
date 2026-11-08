@@ -8,6 +8,8 @@ export type ProductMeta = {
   requestHash: string;
   startedAt: number;
   reading?: ProductReading;
+  paid?: "none" | "generating" | "ready" | "failed";
+  paidStartedAt?: number;
   // Mapa astral: e-mail exigido para ver o mapa grátis. Fica só no servidor (não vai no payload).
   contact?: { email: string; marketing: boolean; consentAt: string; notice: string };
 };

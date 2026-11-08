@@ -5,12 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Lock, Sparkles } from "lucide-react";
 import { ProductPaymentModal } from "@/components/ProductPaymentModal";
 import { formatBRL, PRICES, type ProductKey } from "@/lib/pricing";
+import { fetchReady } from "@/lib/fetch-ready";
 import type { NatalChart, Placement } from "@/lib/natal";
 import ChartWheel from "@/components/ChartWheel";
 import { PLANET_GLYPHS, SIGN_GLYPHS } from "@/lib/chart-wheel";
 import { CONTACT_NOTICE, MARKETING_LABEL } from "@/lib/contact-notice";
 import type { NumerologyProfile } from "@/lib/numerology";
 import styles from "./ProductReadingPage.module.css";
+import { useElapsedMessage } from "./useElapsedMessage";
 
 type Product = "numerologia" | "mapa";
 type CityOption = { name: string; uf: string };
@@ -21,7 +23,7 @@ export type ProductPayload = {
   isPaid: boolean;
   firstName: string;
   calc: { numerology?: NumerologyProfile; chart?: NatalChart; city?: CityOption; birthTime?: string | null };
-  reading: { teaser: string; locked: boolean; sections: Section[] };
+  reading: { teaser: string; locked: boolean; pending?: boolean; sections: Section[] };
 };
 
 const NUM_LABELS: [keyof NumerologyProfile, string, string][] = [
@@ -76,6 +78,20 @@ export function ProductReadingPage({ product }: { product: Product }) {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProductPayload | null>(null);
   const [payOpen, setPayOpen] = useState(false);
+  // Voltando do pagamento, a espera é pela leitura completa (as mensagens mudam).
+  const [loadingPaid, setLoadingPaid] = useState(false);
+  const loadingText = useElapsedMessage(step === "loading", loadingPaid ? [
+    { at: 0, text: "Abrindo a sua leitura completa…" },
+    { at: 6, text: "Escrevendo as seções da sua leitura completa…" },
+    { at: 25, text: "Falta pouco. Não feche esta página…" },
+    { at: 60, text: "Está levando um pouco mais que o normal, mas segue em andamento…" },
+  ] : [
+    { at: 0, text: isMapa ? "Calculando o seu mapa…" : "Calculando os seus números…" },
+    { at: 4, text: isMapa ? "Posicionando os planetas no dia do seu nascimento…" : "Somando as letras do seu nome…" },
+    { at: 12, text: "Escrevendo a sua leitura gratuita…" },
+    { at: 30, text: "Quase lá: revisando o texto…" },
+    { at: 55, text: "Está levando um pouco mais que o normal, mas segue em andamento…" },
+  ]);
   const identity = useRef<{ requestId: string; requestKey: string } | null>(null);
 
   // Restaura o resultado salvo nesta sessão do navegador. Voltando do pagamento (?pagamento=), reabre o
@@ -87,19 +103,26 @@ export function ProductReadingPage({ product }: { product: Product }) {
     if (returning) window.history.replaceState(null, "", window.location.pathname);
     if (!id) return;
     let alive = true;
-    fetch(`/api/produto/${id}`, { cache: "no-store" })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingPaid(returning);
+    setStep("loading");
+    fetchReady(`/api/produto/${id}`)
       .then(async (r) => {
+        if (!alive) return;
         if (r.ok) {
           const p = (await r.json()) as ProductPayload;
           if (!alive) return;
           setData(p);
           setStep("result");
           if (returning && !p.isPaid) setPayOpen(true);
-        } else if (r.status === 403 || r.status === 404) {
+          return;
+        }
+        if (r.status === 403 || r.status === 404) {
           try { sessionStorage.removeItem(storageKey(product)); } catch { /* ignora */ }
         }
+        setStep("form");
       })
-      .catch(() => {});
+      .catch((err) => { if (alive) { setError(err instanceof Error ? err.message : "Não foi possível abrir a leitura."); setStep("form"); } });
     return () => { alive = false; };
   }, [product]);
 
@@ -129,6 +152,7 @@ export function ProductReadingPage({ product }: { product: Product }) {
     // randomUUID exige contexto seguro (HTTPS/localhost); no celular pela rede local HTTP usa getRandomValues.
     const uuid = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (Number(c) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(c) / 4).toString(16));
     identity.current ??= { requestId: uuid(), requestKey: uuid() };
+    setLoadingPaid(false);
     setStep("loading");
     window.scrollTo({ top: 0 });
     try {
@@ -164,8 +188,12 @@ export function ProductReadingPage({ product }: { product: Product }) {
 
   async function refresh() {
     if (!data) return;
-    const r = await fetch(`/api/produto/${data.id}`, { cache: "no-store" });
-    if (r.ok) setData((await r.json()) as ProductPayload);
+    try {
+      const r = await fetchReady(`/api/produto/${data.id}`);
+      if (r.ok) setData((await r.json()) as ProductPayload);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Não foi possível abrir a leitura completa. Recarregue a página.");
+    }
   }
 
   function restart() {
@@ -264,8 +292,8 @@ export function ProductReadingPage({ product }: { product: Product }) {
         {step === "loading" && (
           <div className={styles.loading} role="status">
             <div className={styles.orbit} aria-hidden="true"><span /></div>
-            <p className={styles.loadingText}>{isMapa ? "Calculando o seu mapa…" : "Calculando os seus números…"}</p>
-            <p className={styles.loadingSub}>A interpretação é escrita para você e pode levar até um minuto. Não feche esta página.</p>
+            <p className={styles.loadingText} aria-live="polite">{loadingText}</p>
+            <p className={styles.loadingSub}>Não feche esta página. A leitura é escrita para você.</p>
           </div>
         )}
 
@@ -282,7 +310,7 @@ export function ProductReadingPage({ product }: { product: Product }) {
           product={data.product}
           firstName={data.firstName}
           includes={data.reading.sections.filter((s) => !s.free).map((s) => s.title)}
-          onPaid={() => { setPayOpen(false); void refresh(); }}
+          onPaid={async () => { await refresh(); setPayOpen(false); }}
         />
       )}
     </main>

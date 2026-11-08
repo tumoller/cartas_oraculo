@@ -6,6 +6,7 @@ import { Check, Lock, X } from "lucide-react";
 import { formatBRL, PRICES, type ProductKey } from "@/lib/pricing";
 import type { PublicPayment } from "@/lib/payments";
 import { usePaymentFlow } from "./usePaymentFlow";
+import { useElapsedMessage } from "./useElapsedMessage";
 import styles from "./ProductPaymentModal.module.css";
 
 type Props = {
@@ -27,7 +28,13 @@ const HEAD: Record<ProductKey, string> = {
 
 /** Pagamento do mapa astral e da numerologia: sem persona nem cena, só a oferta e o checkout. */
 export function ProductPaymentModal({ isOpen, onClose, readingId, product, firstName, includes, onPaid }: Props) {
-  const { step, payment, busy, error, pay, retry, reopen } = usePaymentFlow({ isOpen, kind: "unlock", readingId, spread: product, onPaid });
+  const { step, payment, busy, error, pay, retry, reopen, simulate } = usePaymentFlow({ isOpen, kind: "unlock", readingId, spread: product, onPaid });
+  const paidText = useElapsedMessage(step === "paid", [
+    { at: 0, text: "Abrindo a sua leitura completa…" },
+    { at: 6, text: "Escrevendo as seções da sua leitura completa…" },
+    { at: 25, text: "Falta pouco. Não feche esta página…" },
+    { at: 60, text: "Está levando um pouco mais que o normal, mas segue em andamento…" },
+  ]);
   const amount = payment?.amount ?? PRICES[product];
 
   useEffect(() => {
@@ -67,6 +74,11 @@ export function ProductPaymentModal({ isOpen, onClose, readingId, product, first
             <button type="button" className={styles.primary} onClick={pay} disabled={busy}>
               {busy ? "Abrindo o pagamento…" : "Abrir minha leitura completa"}
             </button>
+            {simulate && (
+              <button type="button" className={styles.secondary} onClick={simulate} disabled={busy}>
+                Simular pagamento (só no seu computador)
+              </button>
+            )}
             <p className={styles.note}><Lock size={13} aria-hidden /> Você paga na página segura da InfinitePay e volta para cá. Seus dados de pagamento ficam só com ela.</p>
           </>
         )}
@@ -83,7 +95,7 @@ export function ProductPaymentModal({ isOpen, onClose, readingId, product, first
         {step === "paid" && (
           <>
             <h2 id="pp-title" className={styles.title}>Pagamento confirmado</h2>
-            <p className={styles.waiting}>Abrindo a sua leitura completa…</p>
+            <p className={styles.waiting} aria-live="polite"><span className={styles.dot} /> {paidText}</p>
           </>
         )}
 

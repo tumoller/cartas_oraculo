@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createCheckoutLink } from "@/lib/infinitepay";
 import { publicPayment } from "@/lib/payments";
 import { TITLES, validatePaymentRequest } from "@/lib/payment-request";
+import { startPaidPart } from "@/lib/paid-part";
 
 /** Cria (ou reaproveita) o link de pagamento da InfinitePay para esta consulta. */
 export async function POST(req: NextRequest) {
@@ -12,6 +13,8 @@ export async function POST(req: NextRequest) {
     if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: checked.status });
     if ("paid" in checked) return NextResponse.json(checked.paid);
     const p = checked.ok;
+    // A pessoa vai pagar: a parte paga já começa a ser escrita enquanto ela está na InfinitePay.
+    if (p.kind === "unlock") startPaidPart(p.readingId);
 
     // Mesmo link a cada toque: a pessoa pode ter voltado sem pagar.
     const open = await prisma.payment.findFirst({ where: { readingId: p.readingId, kind: p.kind, spread: p.priced, status: "PENDING", pixImage: null, pixText: { startsWith: "https://" } }, orderBy: { createdAt: "desc" } });

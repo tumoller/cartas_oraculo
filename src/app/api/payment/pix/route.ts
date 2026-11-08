@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createPixOrder } from "@/lib/pagbank";
+import { createPixOrder, pagbankEnabled } from "@/lib/pagbank";
 import { publicPayment } from "@/lib/payments";
 import { TITLES, validatePaymentRequest } from "@/lib/payment-request";
 
 const PIX_MINUTES = 30;
 
 export async function POST(req: NextRequest) {
+  if (!pagbankEnabled()) return NextResponse.json({ error: "Indisponível." }, { status: 404 });
   try {
     const checked = await validatePaymentRequest(req, await req.json());
     if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: checked.status });

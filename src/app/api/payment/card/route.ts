@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createCardOrder, getCardPublicKey } from "@/lib/pagbank";
+import { createCardOrder, getCardPublicKey, pagbankEnabled } from "@/lib/pagbank";
 import { markPayment, publicPayment } from "@/lib/payments";
 import { TITLES, validatePaymentRequest } from "@/lib/payment-request";
 
@@ -17,6 +17,7 @@ export async function GET() {
 
 /** Cobrança no cartão (1x). Recebe só o cartão criptografado no navegador; o resultado é imediato. */
 export async function POST(req: NextRequest) {
+  if (!pagbankEnabled()) return NextResponse.json({ error: "Indisponível." }, { status: 404 });
   try {
     const body = await req.json();
     const { encrypted, holderName } = body;

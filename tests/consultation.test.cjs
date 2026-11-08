@@ -26,15 +26,16 @@ test('nova consulta cigana preserva a carta 28 e inclui sua arte corrigida', asy
   process.env.ORACLE_ACCESS_SECRET = 'test-only-secret';
   let saved;
   const drawn = [cards.find(card => card.id === 28), ...cards.slice(0, 4)];
-  const reading = {card1Reading:'um',card2Reading:'dois',card3Teaser:'três',card3Full:'centro',card4Reading:'quatro',card5Reading:'cinco',generalSynthesis:'síntese'};
+  const reading = {card1Reading:'um',card2Reading:'dois',card3Teaser:'três'};
   const route = load('src/app/api/reading/start/route.ts', {
+    '@/lib/paid-part': {paidPartReady:()=>true,startPaidPart:()=>{},waitPaidPart:async()=>null},
     '@/lib/prisma': {prisma: {readingSession: {
       findUnique: async () => undefined,
       create: async ({data}) => (saved = {...data, createdAt:new Date()}),
       update: async ({data}) => (saved = {...saved, ...data}),
     }}},
     '@/lib/draw': {drawDistinctCards: () => drawn},
-    '@/lib/gemini': {generateOraculoReading: async () => reading},
+    '@/lib/gemini': {generateFreeReading: async () => reading},
   });
   try {
     const response = await route.POST(new NextRequest('http://localhost/api/reading/start', {
@@ -89,11 +90,14 @@ test('mesa de 36 preserva todas as posições e vizinhança não atravessa linha
 test('profundidade básica é salva, aplicada na geração e não entrega relações extras', async () => {
   const oldDemo = process.env.ORACLE_DEMO_MODE;
   const oldSecret = process.env.ORACLE_ACCESS_SECRET;
+  const oldEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'development';
   process.env.ORACLE_DEMO_MODE = 'true';
   process.env.ORACLE_ACCESS_SECRET = 'test-only-secret';
   let state; const generatedDepths=[];
   const db = {readingSession:{findUnique:async()=>state,create:async({data})=>(state={...data,createdAt:new Date()}),update:async({data})=>(state={...state,...data}),updateMany:async({data})=>{state={...state,...data};return {count:1}}}};
   const route = load('src/app/api/reading/start/route.ts', {
+    '@/lib/paid-part': {paidPartReady:()=>true,startPaidPart:()=>{},waitPaidPart:async()=>null},
     '@/lib/prisma':{prisma:db},
     '@/lib/draw':{drawDistinctCards:()=>cards.slice(0,9)},
     '@/lib/spreads':{SPREADS:load('src/lib/spread-config.ts').SPREADS,generateSpreadReading:async({readingDepth})=>{
@@ -127,6 +131,7 @@ test('profundidade básica é salva, aplicada na geração e não entrega relaç
   } finally {
     if(oldDemo===undefined) delete process.env.ORACLE_DEMO_MODE; else process.env.ORACLE_DEMO_MODE=oldDemo;
     if(oldSecret===undefined) delete process.env.ORACLE_ACCESS_SECRET; else process.env.ORACLE_ACCESS_SECRET=oldSecret;
+    if(oldEnv===undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV=oldEnv;
   }
 });
 
@@ -220,9 +225,9 @@ test('repetir mesma consulta pronta não chama IA nem sorteia outra mesa', async
   process.env.ORACLE_ACCESS_SECRET='test-only-secret';
   process.env.ORACLE_DEMO_MODE='true';
   let state; let draws=0; let generations=0;
-  const reading={card1Reading:'um',card2Reading:'dois',card3Teaser:'três',card3Full:'centro',card4Reading:'quatro',card5Reading:'cinco',generalSynthesis:'síntese'};
+  const reading={card1Reading:'um',card2Reading:'dois',card3Teaser:'três'};
   const db={readingSession:{findUnique:async()=>state,create:async({data})=>(state={...data,createdAt:new Date()}),update:async({data})=>(state={...state,...data})}};
-  const route=load('src/app/api/reading/start/route.ts',{'@/lib/prisma':{prisma:db},'@/lib/draw':{drawDistinctCards:()=>{draws++;return cards.slice(0,5)}},'@/lib/gemini':{generateOraculoReading:async()=>{generations++;return reading}}});
+  const route=load('src/app/api/reading/start/route.ts',{'@/lib/paid-part': {paidPartReady:()=>true,startPaidPart:()=>{},waitPaidPart:async()=>null},'@/lib/prisma':{prisma:db},'@/lib/draw':{drawDistinctCards:()=>{draws++;return cards.slice(0,5)}},'@/lib/gemini':{generateFreeReading:async()=>{generations++;return reading}}});
   const body={userName:'Teste',persona:'Oráculo da Galáxia',theme:'Amor & Relacionamento',requestId:'11111111-1111-4111-8111-111111111111',requestKey:'22222222-2222-4222-8222-222222222222'};
   const request=()=>new NextRequest('http://localhost:3000/api/reading/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   const first=await route.POST(request()); const firstData=await first.json();

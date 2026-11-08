@@ -6,6 +6,7 @@ import { formatBRL, PRICES, type PricedSpread } from "@/lib/pricing";
 import type { PublicPayment } from "@/lib/payments";
 import styles from "./PaymentModal.module.css";
 import { usePaymentFlow, type PayStep } from "./usePaymentFlow";
+import { useElapsedMessage } from "./useElapsedMessage";
 
 type Props = {
   isOpen: boolean;
@@ -29,7 +30,13 @@ const LINES: Record<Step, string> = {
 export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread, onPaid }: Props) {
   const assets = sceneAssets(persona);
   const loops = paymentLoops(persona);
-  const { step, payment, busy, error, pay, retry, reopen } = usePaymentFlow({ isOpen, kind, readingId, spread, onPaid });
+  const { step, payment, busy, error, pay, retry, reopen, simulate } = usePaymentFlow({ isOpen, kind, readingId, spread, onPaid });
+  const paidText = useElapsedMessage(step === "paid", [
+    { at: 0, text: "Abrindo a sua leitura…" },
+    { at: 6, text: "Escrevendo as últimas cartas da sua leitura…" },
+    { at: 25, text: "Falta pouco. Não feche esta página…" },
+    { at: 60, text: "Está levando um pouco mais que o normal, mas segue em andamento…" },
+  ]);
 
   if (!isOpen || typeof document === "undefined") return null;
 
@@ -67,6 +74,11 @@ export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread
             <button type="button" className={styles.primary} onClick={pay} disabled={busy}>
               {busy ? "Abrindo o pagamento…" : `Pagar ${formatBRL(amount)}`}
             </button>
+            {simulate && (
+              <button type="button" className={styles.secondary} onClick={simulate} disabled={busy}>
+                Simular pagamento (só no seu computador)
+              </button>
+            )}
             <p className={styles.note}>Você paga com Pix ou cartão na página segura da InfinitePay e volta para cá. Seus dados ficam só com ela.</p>
           </div>
         )}
@@ -81,7 +93,7 @@ export function PaymentModal({ isOpen, onClose, persona, kind, readingId, spread
           </div>
         )}
 
-        {step === "paid" && <p className={styles.waiting}>Abrindo a sua mesa…</p>}
+        {step === "paid" && <p className={styles.waiting} aria-live="polite">{paidText}</p>}
 
         {step === "declined" && (
           <div className={styles.form}>

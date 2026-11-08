@@ -14,6 +14,7 @@ import { WhatsAppUpsell } from "./WhatsAppUpsell";
 import { CardRevealDialog } from "./CardRevealDialog";
 import { LiveInviteDialog } from "./LiveInviteDialog";
 import { ChapterSwitchDialog } from "./ChapterSwitchDialog";
+import { fetchReady } from "@/lib/fetch-ready";
 import {
   getChapterAudioState,
   getCurrentPlayingMedia,
@@ -347,9 +348,14 @@ export function ReadingBoard({
         spread="line5"
         onPaid={async () => {
           // O servidor já marcou a leitura como paga; recarrega o conteúdo completo.
-          const response = await fetch(`/api/reading/${session.id}`, { cache: "no-store" });
-          if (response.ok) setSession(await response.json());
-          try { localStorage.removeItem(`oracle_payment_${session.id}`); } catch {}
+          // Se a parte paga ainda estiver sendo escrita, o modal segue na tela com as mensagens de espera.
+          try {
+            const response = await fetchReady(`/api/reading/${session.id}`);
+            if (response.ok) setSession(await response.json());
+            try { localStorage.removeItem(`oracle_payment_${session.id}`); } catch {}
+          } catch (error) {
+            window.alert(error instanceof Error ? error.message : "Não foi possível abrir a leitura completa. Recarregue a página.");
+          }
           setIsPixModalOpen(false);
         }}
       />

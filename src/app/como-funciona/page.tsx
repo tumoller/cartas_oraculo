@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function ComoFunciona() {
   return (
     <main className="min-h-screen max-w-3xl mx-auto px-6 py-12 text-slate-200">
-      <Link href="/" className="text-sm text-purple-300 underline underline-offset-4">← Voltar à leitura</Link>
+      <Link href="/baralho-cigano" className="text-sm text-purple-300 underline underline-offset-4">← Voltar à leitura</Link>
       <h1 className="mt-8 text-3xl font-bold font-serif text-slate-100">Como funciona</h1>
 
       <div className="mt-8 space-y-6 leading-relaxed">

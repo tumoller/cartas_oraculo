@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ProductReadingPage } from "@/components/ProductReadingPage";
 
 export const metadata: Metadata = {
-  title: "Mapa Astral | Oráculo Cósmico",
+  title: "Mapa Astral",
   description: "Seu mapa astral personalizado: Sol, Lua, Ascendente, planetas e casas, com leitura interpretada.",
 };
 

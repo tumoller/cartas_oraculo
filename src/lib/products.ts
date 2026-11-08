@@ -38,16 +38,21 @@ const SECTIONS: Record<ProductKey, SectionSpec[]> = {
   ],
 };
 
-const PERSONA_TONE = `Tom conforme a persona:
-- Cigana Tradicional: direta, prática e calorosa, sem folclore inventado.
-- Oráculo da Galáxia: reflexiva, contemporânea, com metáforas cósmicas discretas.
-- Linha de Umbanda: acolhedora e respeitosa, sem afirmar incorporação, recados de guias ou autoridade religiosa.`;
+/** Seções de cada produto (sem as instruções da IA), para a página de exemplo e o modal. */
+export const productSections = (product: ProductKey) => SECTIONS[product].map(({ id, title, free }) => ({ id, title, free }));
+
+// Voz única, sem persona: mapa astral e numerologia não são oráculo nem cartomancia.
+const TONE: Record<ProductKey, string> = {
+  numerologia: "Escreva como um numerólogo experiente: claro, acolhedor e contemporâneo, explicando o significado de cada número sem misticismo religioso.",
+  "mapa-completo": "Escreva como um astrólogo experiente: claro, acolhedor e contemporâneo, explicando os termos técnicos em linguagem simples, sem misticismo religioso.",
+  "mapa-simples": "Escreva como um astrólogo experiente: claro, acolhedor e contemporâneo, explicando os termos técnicos em linguagem simples, sem misticismo religioso.",
+};
 
 function instructions(product: ProductKey): string {
   const specs = SECTIONS[product];
   const kind = product === "numerologia" ? "um mapa numerológico pitagórico" : "um mapa astral natal (zodíaco tropical, casas Placidus)";
   return `Você interpreta ${kind} em português brasileiro, para a pessoa nomeada nos dados. Os cálculos já estão prontos e corretos: NÃO recalcule, não invente posições, números, graus ou casas que não estejam nos dados.
-${PERSONA_TONE}
+${TONE[product]}
 
 Fale diretamente com a pessoa, pelo primeiro nome. Seja específico aos dados (cite signos, casas, aspectos ou números), evite frases genéricas que serviriam para qualquer um. Mostre tensões com honestidade, sem fatalismo. Não diagnostique saúde, não dê conselho financeiro ou jurídico e não garanta acontecimentos.
 
@@ -59,8 +64,8 @@ ${specs.map((s) => `- ${s.id}: ${s.brief}${s.free ? " [PÚBLICO]" : ""}.`).join(
 Cada seção paga tem de 110 a 180 palavras, salvo indicação acima. As seções [PÚBLICO] e o teaser não podem antecipar o conteúdo detalhado das seções pagas.`;
 }
 
-export function productData(params: { firstName: string; persona: string; numerology?: NumerologyProfile; chart?: NatalChart }) {
-  return JSON.stringify({ firstName: params.firstName, persona: params.persona, numerology: params.numerology, chart: params.chart });
+export function productData(params: { firstName: string; numerology?: NumerologyProfile; chart?: NatalChart }) {
+  return JSON.stringify({ firstName: params.firstName, numerology: params.numerology, chart: params.chart });
 }
 
 function validate(product: ProductKey, raw: unknown): ProductReading {

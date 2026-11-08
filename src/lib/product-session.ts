@@ -19,7 +19,6 @@ export function productPayload(session: ReadingSession) {
     product: meta.product,
     isPaid: session.isPaid,
     firstName: session.userName,
-    persona: session.persona,
     calc: session.cardsDrawn,
     reading: sanitizeProductReading(meta.reading as ProductReading, session.isPaid),
   };

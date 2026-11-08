@@ -10,11 +10,11 @@ export const PLANET_GLYPHS: Record<string, string> = {
 };
 
 export const ASPECT_COLORS: Record<string, string> = {
-  "Conjunção": "#f0c674",
-  "Oposição": "#ff6b6b",
-  "Quadratura": "#ff9f43",
-  "Trígono": "#5dade2",
-  "Sextil": "#58d68d",
+  "Conjunção": "#a8823c",
+  "Oposição": "#c0392b",
+  "Quadratura": "#d4682a",
+  "Trígono": "#2f6fa8",
+  "Sextil": "#3d8b5a",
 };
 
 /** Ascendente a esquerda (9h); longitude cresce no sentido anti-horario. */

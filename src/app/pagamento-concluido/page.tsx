@@ -6,13 +6,16 @@ import { useEffect } from "react";
 // Aberta como janela separada: avisa a aba do site e fecha. Sem janela de origem: volta ao site.
 export default function PagamentoConcluido() {
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("id") || "";
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id") || "";
+    const to = params.get("to") || "";
+    const page = ["/baralho-cigano", "/mapa-astral", "/numerologia"].includes(to) ? to : "/baralho-cigano";
     if (window.opener && !window.opener.closed) {
       try { window.opener.postMessage({ type: "oracle-payment-return", id }, window.location.origin); } catch {}
       window.close();
     }
     // Se o navegador não deixar fechar (ou não houver aba de origem), segue para o site.
-    const timer = window.setTimeout(() => window.location.replace(`/?pagamento=${encodeURIComponent(id)}`), 1200);
+    const timer = window.setTimeout(() => window.location.replace(`${page}?pagamento=${encodeURIComponent(id)}`), 1200);
     return () => window.clearTimeout(timer);
   }, []);
 

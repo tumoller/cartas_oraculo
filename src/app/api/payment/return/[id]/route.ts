@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { confirmCheckout } from "@/lib/payments";
 import { validReadingId } from "@/lib/reading-access";
+import { isProductKey } from "@/lib/pricing";
+
+/** Página que retoma a consulta quando a janela de pagamento não volta sozinha. */
+function pageFor(spread: string | undefined) {
+  if (spread === "numerologia") return "/numerologia";
+  if (spread && isProductKey(spread)) return "/mapa-astral";
+  return "/baralho-cigano";
+}
 
 // A InfinitePay devolve o cliente para cá com slug e transaction_nsu na URL.
 // Os parâmetros vêm do navegador: só servem para consultar o /payment_check, nunca como prova.
@@ -16,5 +24,5 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     await confirmCheckout(payment, slug, transactionNsu)
       .catch((error) => console.error("[payment/return]", id, error instanceof Error ? error.message : error));
   }
-  return NextResponse.redirect(`${origin}/pagamento-concluido?id=${id}`, 303);
+  return NextResponse.redirect(`${origin}/pagamento-concluido?id=${id}&to=${encodeURIComponent(pageFor(payment?.spread))}`, 303);
 }

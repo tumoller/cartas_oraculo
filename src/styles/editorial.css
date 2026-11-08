@@ -1,0 +1,30 @@
+/* Visual editorial claro: início, mapa astral e numerologia. As cartas mantêm o visual escuro próprio.
+   .ed no elemento raiz da página (cores, fontes e fundo); .ed-vars só as variáveis (ex.: modais em portal). */
+.ed, .ed-vars {
+  --ed-bg: #f6f1e7;          /* creme */
+  --ed-surface: #fffdf8;     /* papel */
+  --ed-surface-2: #efe7d6;   /* creme mais fundo */
+  --ed-ink: #1b2340;         /* azul-noite: texto e traço */
+  --ed-ink-soft: #464e6e;
+  --ed-muted: #6f7590;
+  --ed-line: #e2d9c6;
+  --ed-gold: #9a7634;        /* dourado fosco (texto e detalhes; contraste AA sobre creme) */
+  --ed-gold-soft: #d8bf87;
+  --ed-night: #141a33;       /* faixas escuras */
+  --ed-night-ink: #f3ead7;
+  --ed-danger: #a8322a;
+  --ed-ok: #2f6b45;
+  --ed-radius: 16px;
+  --ed-shadow: 0 1px 2px rgba(27, 35, 64, .06), 0 8px 24px rgba(27, 35, 64, .07);
+  --ed-display: var(--font-display), Georgia, serif;
+  --ed-text: var(--font-text), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--ed-text);
+}
+.ed {
+  min-height: 100dvh;
+  background: var(--ed-bg);
+  color: var(--ed-ink);
+  -webkit-font-smoothing: antialiased;
+}
+.ed ::selection, .ed-vars ::selection { background: var(--ed-gold-soft); color: var(--ed-ink); }
+.ed :focus-visible, .ed-vars :focus-visible { outline: 2px solid var(--ed-gold); outline-offset: 3px; }

@@ -11,7 +11,8 @@ import { productPayload, type ProductMeta } from "@/lib/product-session";
 import type { ProductKey } from "@/lib/pricing";
 import { CONTACT_NOTICE_VERSION } from "@/lib/contact-notice";
 
-const PERSONAS = ["Oráculo da Galáxia", "Cigana Tradicional", "Linha de Umbanda"];
+// Sem persona: a coluna do banco é obrigatória, então fica um valor neutro.
+const PERSONA = "Neutro";
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
@@ -20,13 +21,12 @@ export async function POST(req: NextRequest) {
   let meta: ProductMeta | undefined;
   try {
     const body = await req.json();
-    const { product, fullName, persona, birthDate, birthTime, city, email, marketing, requestId, requestKey } = body ?? {};
+    const { product, fullName, birthDate, birthTime, city, email, marketing, requestId, requestKey } = body ?? {};
     if (product !== "numerologia" && product !== "mapa") return bad("Produto inválido.");
     if (typeof fullName !== "string") return bad("Informe seu nome completo.");
     const name = fullName.trim().replace(/\s+/g, " ");
     const words = name.split(" ").length;
     if (name.length < 3 || name.length > 80 || (product === "numerologia" && words < 2)) return bad(product === "numerologia" ? "Informe seu nome completo, como na certidão de nascimento." : "Informe seu nome.");
-    if (typeof persona !== "string" || !PERSONAS.includes(persona)) return bad("Escolha uma abordagem válida.");
     const m = typeof birthDate === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate) : null;
     const birth = m ? { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) } : null;
     if (!birth || !validBirthDate(birth)) return bad("Informe uma data de nascimento válida.");
@@ -69,14 +69,14 @@ export async function POST(req: NextRequest) {
       meta = { product: productKey, status: "generating", requestHash, startedAt: Date.now() };
       if (product === "mapa") meta.contact = { email: (email as string).trim().toLowerCase(), marketing: marketing === true, consentAt: new Date().toISOString(), notice: CONTACT_NOTICE_VERSION };
       session = await prisma.readingSession.create({
-        data: { id: requestId, userName: firstName, persona, theme: product === "numerologia" ? "Numerologia" : "Mapa Astral", cardsDrawn: json(calc), aiReading: json(meta) },
+        data: { id: requestId, userName: firstName, persona: PERSONA, theme: product === "numerologia" ? "Numerologia" : "Mapa Astral", cardsDrawn: json(calc), aiReading: json(meta) },
       });
     }
     sessionId = session.id;
     const saved = session.cardsDrawn as unknown as { numerology?: NumerologyProfile; chart?: NatalChart };
     const reading = await generateProductReading(
       meta!.product as ProductKey,
-      productData({ firstName: session.userName, persona: session.persona, numerology: saved.numerology, chart: saved.chart }),
+      productData({ firstName: session.userName, numerology: saved.numerology, chart: saved.chart }),
     );
     session = await prisma.readingSession.update({ where: { id: session.id }, data: { aiReading: json({ ...meta, status: "ready", reading }) } });
     return grantReadingAccess(NextResponse.json(productPayload(session), { status: 201 }), req, session.id);

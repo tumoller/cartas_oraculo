@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { sceneAssets } from "@/lib/scene-assets";
+import { sceneAssets, sceneLoops } from "@/lib/scene-assets";
 import {
   Sparkles,
   Compass,
@@ -271,6 +271,7 @@ export default function CardsApp() {
   };
 
   const loadingAssets = sceneAssets(selectedPersona);
+  const loadingLoop = sceneLoops(selectedPersona).concentrating;
 
   return (
     <main
@@ -731,6 +732,18 @@ export default function CardsApp() {
                 }`}
                 priority
               />
+              {loadingLoop && (
+                <video
+                  src={loadingLoop}
+                  muted
+                  loop
+                  playsInline
+                  autoPlay
+                  className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${
+                    loadingPhase === "concentrating" ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              )}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-slate-950 via-slate-950/60 to-transparent" />
               <div className="absolute inset-x-4 bottom-4 flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-amber-200">
                 <span>✦ {selectedPersona}</span>

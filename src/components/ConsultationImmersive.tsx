@@ -95,6 +95,7 @@ export function ConsultationImmersive({
   const mesaDialog = useRef<HTMLDialogElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const speakingLayer = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const haloRef = useRef<HTMLDivElement>(null);
   const welcomePlayer = useRef<HTMLAudioElement | null>(null);
 
@@ -127,6 +128,16 @@ export function ConsultationImmersive({
       : isPreparingAudio || busy
         ? "concentrating"
         : "idle";
+
+  // Só o vídeo do estado atual roda; os outros ficam pausados (no celular, quatro vídeos ao mesmo tempo pesam).
+  useEffect(() => {
+    stageRef.current?.querySelectorAll("video").forEach((video) => {
+      if (video.dataset.active) {
+        video.currentTime = 0;
+        void video.play().catch(() => {});
+      } else video.pause();
+    });
+  }, [oracleState]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -311,7 +322,7 @@ export function ConsultationImmersive({
 
       {/* The oracle. One layer per state; video loops replace stills when they exist. */}
       <div className={styles.stage} aria-hidden="true">
-        <div className={styles.stageInner}>
+        <div ref={stageRef} className={styles.stageInner}>
           {(["idle", "concentrating", "speaking", "revealing"] as const).map((state) => {
             const still = state === "concentrating" ? art.sceneConcentrating : state === "speaking" ? null : state === "revealing" ? art.sceneConcentrating : art.scene;
             const loop = loops[state];
@@ -320,14 +331,15 @@ export function ConsultationImmersive({
               return (
                 <video
                   key={state}
+                  data-active={active ? "1" : undefined}
                   className={`${styles.layer} ${active ? styles.layerOn : ""}`}
                   src={loop}
                   poster={still ?? art.scene}
                   muted
                   loop
                   playsInline
-                  autoPlay
-                  preload={state === "idle" ? "auto" : "metadata"}
+                  autoPlay={active}
+                  preload="auto"
                 />
               );
             }

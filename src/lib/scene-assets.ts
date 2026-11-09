@@ -8,7 +8,12 @@ export type OracleLoops = Partial<Record<OracleState, string>>;
 
 const LOOPS: Record<"umbanda" | "cigana" | "cosmico", OracleLoops> = {
   umbanda: {},
-  cigana: {},
+  cigana: {
+    idle: "/scenes/loops/cigana-mesa-parada.mp4",
+    concentrating: "/scenes/loops/cigana-mesa-concentrada.mp4",
+    speaking: "/scenes/loops/cigana-mesa-falando.mp4",
+    revealing: "/scenes/loops/cigana-mesa-revelando.mp4",
+  },
   cosmico: {},
 };
 
@@ -22,7 +27,11 @@ export function sceneLoops(persona: string): OracleLoops {
 export type PaymentMood = "waiting" | "paid" | "declined";
 const PAYMENT_LOOPS: Record<"umbanda" | "cigana" | "cosmico", Partial<Record<PaymentMood, string>>> = {
   umbanda: {},
-  cigana: {},
+  cigana: {
+    waiting: "/scenes/loops/cigana-pagamento-aguardando.mp4",
+    paid: "/scenes/loops/cigana-pagamento-aceite.mp4",
+    declined: "/scenes/loops/cigana-pagamento-recusa.mp4",
+  },
   cosmico: {},
 };
 
